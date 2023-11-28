@@ -7,35 +7,112 @@ import os
 import glob
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
 import pandas as pd
 from datetime import datetime
 import time
 from fuzzywuzzy import fuzz, process
 import math
+from html.parser import HTMLParser
+from html.entities import name2codepoint
+import codecs
+import urllib.request, urllib.error, urllib.parse
+import pathlib
 
-def run_vpn():
-    wait_seconds = 15
-    process_list = [p.name() for p in psutil.process_iter()]
-    print("checking if VPN is running:")
-    print("---------------------------"*5)
-    if "pia-client.exe" not in process_list:
-        print("...VPN not running...")
-        print("...starting pia-client.exe...")
-        os.startfile("C:\Program Files\Private Internet Access\pia-client.exe")
-        print("...waiting for program to start before scraping...")
-        print("---------------------------"*2)
-        time.sleep(wait_seconds)
-        process_list = [p.name() for p in psutil.process_iter()]
-        if "pia-client.exe" in process_list:
-            print("...vpn has started. now activating private IP address...")
-            print(f"...waiting for {wait_seconds} seconds vpn to activate private IP addess...")
-            print("---------------------------"*2)
-            time.sleep(wait_seconds)
-            print("...wait complete!")
+class MyHTMLParser(HTMLParser):
+    """
+    Got the original code from here, before modifications: https://docs.python.org/3/library/html.parser.html
+    """
+    def __init__(self):
+        HTMLParser.__init__(self)
+        self.parsed_list = []
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            # print("Start tag:", tag)
+            for attr in attrs:
+                # print("     attr:", attr)
+                
+                self.parsed_list.append(attr)
+    def handle_endtag(self, tag):
+        # print("End tag  :", tag)
+        pass
+
+    def handle_data(self, data):
+        # print("Data     :", data)
+        pass
+
+    def handle_comment(self, data):
+        # print("Comment  :", data)
+        pass
+
+    def handle_entityref(self, name):
+        c = chr(name2codepoint[name])
+        # print("Named ent:", c)
+        pass
+    def handle_charref(self, name):
+        if name.startswith('x'):
+            c = chr(int(name[1:], 16))
         else:
-            print("error")
+            c = chr(int(name))
+        # print("Num ent  :", c)
+        pass
+    def handle_decl(self, data):
+        # print("Decl     :", data)
+        pass
+
+def run_vpn_and_chromedriver(chromedriver=False):
+    
+    program_directory = [
+        "C:\\Program Files\Private Internet Access\pia-client.exe",
+        "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"]
+    program_name = ["VPN","CHROMEDRIVER"]
+    if chromedriver == True:
+        program_list = ["pia-client.exe","chromedriver.exe"]
+    if chromedriver == False:
+        program_list = ["pia-client.exe"]
+    
+    ct = -1
+    for program in program_list:
+        ct += 1
+        wait_seconds = 10
+        process_list = [p.name() for p in psutil.process_iter()]
+        print("checking if VPN is running:")
+        print("---------------------------"*5)
+        if program not in process_list:
+            print(f"...{program_name[ct]} not running...")
+            print(f"...starting {program}...")
+            os.startfile(program_directory[ct])
+            print(f"...waiting for program {program_name[ct]} to start before scraping...")
+            time.sleep(wait_seconds)
+            process_list = [p.name() for p in psutil.process_iter()]
+            if program in process_list:
+                if "pia" in program:
+                    print("...vpn has started. now activating private IP address...")
+                    print(f"...waiting for {wait_seconds} seconds vpn to activate private IP addess...")
+                    time.sleep(wait_seconds)
+                    print("...wait complete!")
+            if "pia" in program:
+                print("error")
+            else:
+                pass
+        else:
+            print(f"...{program_name[ct]} running!")
+
+def beaut_soup_grab(url,find_all='div',div_class=""):
+    r = requests.get(url, headers={'accept': 'application/json'})
+    if r.status_code == 200:
+        # Process the response content here
+        print(f"Success for {url}")
     else:
-        print("...vpn running!")
+        # Log an error for non-success status codes
+        print(f"Error: {url} returned status code {r.status_code}")
+    output = r.text
+    soup = BeautifulSoup(output, 'html.parser')
+    if div_class == "":
+        divs = soup.find_all(find_all) 
+    else:
+        divs = soup.find_all(find_all,class_=div_class) 
+    return divs
 
 def run_url_scrape(url_list):
     # code to automate grabbing URL's: TO BE CODED
@@ -48,20 +125,7 @@ def run_url_scrape(url_list):
     content_list = []
     for url in url_list:
         try:
-            
-            r = requests.get(url, headers={'accept': 'application/json'})
-            if r.status_code == 200:
-                # Process the response content here
-                print(f"Success for {url}")
-            else:
-                # Log an error for non-success status codes
-                print(f"Error: {url} returned status code {r.status_code}")
-            output = r.text
-            soup = BeautifulSoup(output, 'html.parser')
-            soup_pretty = soup.prettify()
-
-            divs = soup.find_all('div') 
-
+            divs = beaut_soup_grab(url)
             # rid the list of divs without user postings by filtering for div's with anonymous 2 or more times
             for div in divs:
                 content = div.text
@@ -79,6 +143,52 @@ def run_url_scrape(url_list):
             print(f"An unexpected error occurred for {url}: {e}")
             
     return content_list
+
+def grab_thread_urls_from_catalog():
+    """
+    grabs thread URLs from catalog page of 4chan /pol/
+    
+    https://boards.4chan.org/pol/catalog
+    """
+    pol_cat_url = "https://boards.4chan.org/pol/catalog"
+    
+    webdriver_path = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
+    
+    service = Service(executable_path=webdriver_path)
+    options = webdriver.ChromeOptions()
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.get(pol_cat_url)
+    time.sleep(5)
+    
+    # Get the HTML content of the page
+    html_content = driver.page_source
+
+    # Specify the file name where you want to save the HTML content
+    file_name = 'C:/Users/mattk/Desktop/streaming_data_experiment/html_file/4chan_catalog_pol.html'
+
+    # Save the HTML content to a file
+    with open(file_name, 'w', encoding='utf-8') as file:
+        file.write(html_content)
+
+    # Close the WebDriver when you're done
+    time.sleep(5)
+    driver.quit()
+    
+    HTMLFile = open(file_name, "r",encoding="utf-8") 
+    HTMLFile = HTMLFile.read() 
+    parser = MyHTMLParser()
+    parser.feed(HTMLFile)
+
+    list = parser.parsed_list
+    thread_list = []
+    for item in list:
+        if item[0] == 'href':
+            if "/pol/thread/" in item[1]:
+                if item[1] not in thread_list:
+                    thread_url = "https:" + item[1]
+                    thread_list.append(thread_url)
+
+    return thread_list
 
 def upload_data_mySQL(sorted_dict,content_list):
     
@@ -136,13 +246,20 @@ def count_analyze_words(content_list):
         words = content.split()
         for word in words:
             word_counts[word]+=1
-    file_name = f"word_counts_{formatted_date}.json"
+    file_name = f"C:/Users/mattk/Desktop/streaming_data_experiment/word_count_jsons/word_counts_{formatted_date}.json"
+    file_name_forscript = f"C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json"
     sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
 
     # upload word counts and post content to Mysql database
     upload_data_mySQL(sorted_dict,content_list) 
     
     with open(file_name, "w") as json_file:
+        json.dump(sorted_dict, json_file,indent=4) 
+    try:
+        os.remove("C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json")
+    except:
+        pass
+    with open(file_name_forscript, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
         
     with open(f'content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
@@ -219,17 +336,14 @@ def find_similar_matches(query_list, dictionary, threshold=80):
     return merge_dicts(match_dict_list)
 
 def grab_latest_json():
-    
     """
     grab latest json file to build dictionary for matching function
     """
-    
-    directory = "C:\Users\mattk\Desktop\streaming_data_experiment\word_count_jsons"
-    json_files = glob.glob(os.path.join(directory, '*.json'))
-    json_files = json_files.sort(key=os.path.getctime, reverse=True)
-    if json_files:
-        latest_json_file = json_files[0]
-        print(f"The latest JSON file is: {latest_json_file}")
-    else:
-        print("No JSON files found in the directory.")
+    directory = "C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json"
+    f = open(directory)
+    data = json.load(f)
+    f.close()
+    return data
+
+
             
