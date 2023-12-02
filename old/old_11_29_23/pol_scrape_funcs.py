@@ -18,46 +18,20 @@ from html.entities import name2codepoint
 import codecs
 import urllib.request, urllib.error, urllib.parse
 import pathlib
-import mysql.connector
-
 
 class MyHTMLParser(HTMLParser):
     """
-    Got the original code from here, before modifications:  
+    Got the original code from here, before modifications: https://docs.python.org/3/library/html.parser.html
     """
     def __init__(self):
         HTMLParser.__init__(self)
         self.parsed_list = []
-        self.tag = "a"
-        self.content = ""
-        self.content_search = False
-        self.thread_search = True
     def handle_starttag(self, tag, attrs):
-        
-        if self.thread_search == True:
-            if self.tag == "":
-                # print("Start tag:", tag)
-                for attr in attrs:
-                    if self.content_search == True:
-                        if self.content in attr:
-                            self.parsed_list.append(attr)
-                        # print("     attr:", attr)
-                    else:
-                        self.parsed_list.append(attr)
-            if self.tag == "a":
-                if tag == self.tag:
-                    # print("Start tag:", tag)
-                    for attr in attrs:
-                        if self.content_search == True:
-                            if self.content in attr:
-                                self.parsed_list.append(attr)
-                            # print("     attr:", attr)
-                        else:
-                            self.parsed_list.append(attr)
-        if self.thread_search == False:
+        if tag == "a":
             # print("Start tag:", tag)
             for attr in attrs:
                 # print("     attr:", attr)
+                
                 self.parsed_list.append(attr)
     def handle_endtag(self, tag):
         # print("End tag  :", tag)
@@ -170,37 +144,6 @@ def run_url_scrape(url_list):
             
     return content_list
 
-def get_selenium_driver():
-    """
-    returns webdriver so selenium can be implemented more easily
-    """
-    webdriver_path = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
-    service = Service(executable_path=webdriver_path)
-    options = webdriver.ChromeOptions()
-    driver = webdriver.Chrome(service=service, options=options)    
-    return driver
-
-def parse_html(html_content,filename,thread_search=True): 
-    """
-    takes html_content from selenium page_source output
-    takes a filename
-    """
-    file_name = f'C:/Users/mattk/Desktop/streaming_data_experiment/html_file/{filename}.html'
-
-    with open(file_name, 'w', encoding='utf-8') as file:
-        file.write(html_content)
-    time.sleep(5)
-    
-    HTMLFile = open(file_name, "r",encoding="utf-8") 
-    HTMLFile = HTMLFile.read() 
-    parser = MyHTMLParser()
-    if thread_search == False:
-        parser.thread_search = False
-    parser.feed(HTMLFile)
-
-    parsed_list = parser.parsed_list  
-    return parsed_list
-
 def grab_thread_urls_from_catalog():
     """
     grabs thread URLs from catalog page of 4chan /pol/
@@ -209,16 +152,36 @@ def grab_thread_urls_from_catalog():
     """
     pol_cat_url = "https://boards.4chan.org/pol/catalog"
     
-    driver = get_selenium_driver()
+    webdriver_path = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
+    
+    service = Service(executable_path=webdriver_path)
+    options = webdriver.ChromeOptions()
+    driver = webdriver.Chrome(service=service, options=options)
     driver.get(pol_cat_url)
     time.sleep(5)
     
+    # Get the HTML content of the page
     html_content = driver.page_source
 
-    the_list = parse_html(html_content=html_content,filename="4chan_catalog_pol")
+    # Specify the file name where you want to save the HTML content
+    file_name = 'C:/Users/mattk/Desktop/streaming_data_experiment/html_file/4chan_catalog_pol.html'
+
+    # Save the HTML content to a file
+    with open(file_name, 'w', encoding='utf-8') as file:
+        file.write(html_content)
+
+    # Close the WebDriver when you're done
+    time.sleep(5)
+    driver.quit()
+    
+    HTMLFile = open(file_name, "r",encoding="utf-8") 
+    HTMLFile = HTMLFile.read() 
+    parser = MyHTMLParser()
+    parser.feed(HTMLFile)
+
+    list = parser.parsed_list
     thread_list = []
-    for item in the_list:
-        print(item)
+    for item in list:
         if item[0] == 'href':
             if "/pol/thread/" in item[1]:
                 if item[1] not in thread_list:
@@ -227,40 +190,19 @@ def grab_thread_urls_from_catalog():
 
     return thread_list
 
-def write_line_by_line_txt(content_list,filename,direct_address="", directory_name="defalt",):
+def upload_data_mySQL(sorted_dict,content_list):
+    
     """
-    filename: takes a filename for a txt file. Do not include '.txt' in filename.
-    directory_name: either default, which is the default directory, or
-    it takes whatever directory you give it, with a forward slash on the end
+    will create table for word counts by date
+    
+    create tables of particularly problmatic posts
+    
+    over time and with more data, trends can be seen for the use of different 
+    words and terms that come and go with the broader newscycle 
+    
     """
     
-    now = datetime.now()
-    formatted_date = now.strftime("%m_%d_%Y_%H_%M")
-    
-    directory_dict = {
-        "default":"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/txt_files/",
-        f"{directory_name}":f"{direct_address}"
-    }
-    if directory_name == "defalt":
-        ct = 0
-        for key, value in directory_dict.items():
-            ct += 1
-            if ct == 1:
-                direct_address = value
-    else:
-        ct = -1
-        for key, value in directory_dict.items():
-            ct += 1
-            if ct == 1:
-                direct_address = value
-
-    with open(f"{direct_address}{filename}_{formatted_date}.txt", "w") as file:
-        for line in content_list:
-            file.write(line)
-            file.write('\n')
-        file.close()
-            
-    print("Txt file written. Number of lines:",len(content_list))
+    pass
 
 def count_analyze_words(content_list):
     
@@ -309,7 +251,7 @@ def count_analyze_words(content_list):
     sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
 
     # upload word counts and post content to Mysql database
-    # upload_data_mySQL(sorted_dict,content_list) 
+    upload_data_mySQL(sorted_dict,content_list) 
     
     with open(file_name, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
@@ -320,7 +262,7 @@ def count_analyze_words(content_list):
     with open(file_name_forscript, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
         
-    with open(f'C:/Users/mattk/Desktop/streaming_data_experiment/content_list_txt_files/content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
+    with open(f'content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
         for line in content_list:
             f.write(line)
             f.write('\n')
@@ -353,47 +295,7 @@ def merge_dicts(dicts_list):
         merged_dict.update(d)
     return merged_dict
 
-def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
-
-    query_words = {}
-    for q in query_tuple_list:
-        word = q[0]
-        score = q[1]
-        if score >= 80:
-            query_words[word] = score
-    
-    new_count_dict = {}
-    for q_word in query_words:
-        for wordd, count in word_counts_dict.items():
-            if wordd == q_word:
-                new_count_dict[wordd] = count
-    
-    count = 0
-    for word, ct in new_count_dict.items():
-        count += ct
-
-    blur_words = {
-        "nigger":"n-word",
-        "jew":"jew",
-        "hitler":"hitler",
-        "kike":"k-word",
-        "poo":"poo (anti-Indian slur)",
-        "white":"white",
-        "jesus":"jesus",
-        "christian":"christian",
-        "muslim":"muslim"
-    }
-    now = datetime.now()
-    formatted_date = now.strftime("%m_%d_%Y_%H_%M")
-    readable_formatted_date = now.strftime("%m_%d_%Y")
-    
-    
-    print(f"Query:{blur_words[filename]}. Number of occurances: {count}.")
-    query_file_name = f"C:/Users/mattk/Desktop/streaming_data_experiment/query_word_counts/query_word_count_query_{filename}_{formatted_date}.json"
-    with open(query_file_name, "w") as json_file:
-        json.dump(new_count_dict, json_file,indent=4) 
-
-def find_similar_matches(query_list, words_dictionary, threshold=80):
+def find_similar_matches(query_list, dictionary, threshold=80):
 
     """
     find matches for the queryied words (i.e., slurs) and 
@@ -409,7 +311,7 @@ def find_similar_matches(query_list, words_dictionary, threshold=80):
         querylen_step_4 = querylen_step_3 % 100
         
         new_dict = {}
-        for word, score in words_dictionary.items():
+        for word, score in dictionary.items():
             match_string = word[0]
             match_string_first_letter = match_string[0].lower()
             query_string_first_letter = query[0].lower()
@@ -426,52 +328,13 @@ def find_similar_matches(query_list, words_dictionary, threshold=80):
         matches = process.extract(query, new_dict.keys(), limit=None)
         matches = [(word, score) for word, score in matches if score >= threshold]
         if matches:
-            # for word, similarity_score in matches:
-            #     # print(f"QUERY:{query}. {word}: {similarity_score}")
-            #     pass
+            for word, similarity_score in matches:
+                print(f"QUERY:{query}. {word}: {similarity_score}")
             match_dict_list.append(matches)
         else:
             print("no matches for query:",query)
-        
-        get_counts_for_queries(matches,words_dictionary,filename=query)
     return merge_dicts(match_dict_list)
-     
-def search_content(search_word, search_date="",query_dict={}):   
-    """
-    takes an optional search date in the format: 01-01-1999
-    """
-    now = datetime.now()
-    if search_date != "":
-        search_date = search_date
-    else:
-        search_date = now.strftime("%m_%d_%Y")
-    folder_path = "C:/Users/mattk/Desktop/streaming_data_experiment/content_list_txt_files"
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            if f"{search_date}" in file:
-                this_one = file
-                print(file)
-                break
-    this_one = folder_path + "/" + this_one
-    searched_content = []
-    
-    
-    
-    with open(this_one,"r",encoding="utf-8") as file:
-        for f in file:
-            if search_word in f:
-                if f not in searched_content:
-                    searched_content.append(f)
-    
-    print(len(searched_content))
-    search_date = now.strftime("%m_%d_%Y_%H_%M")
-    file_path = f"C:/Users/mattk/Desktop/streaming_data_experiment/content_list_txt_files/searched_{search_word}_{search_date}.txt"
-    with open(file_path,"w",encoding="utf-8") as file:
-        for s in searched_content:
-            file.write(s)
-            file.write('\n')
-    
-    
+
 def grab_latest_json():
     """
     grab latest json file to build dictionary for matching function
