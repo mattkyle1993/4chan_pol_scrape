@@ -49,26 +49,81 @@ def close_commit_mysql_connect(cnx,cursor):
     cnx.close() 
     cursor.close()
 
-def insert_into_table(json_query_data, sql_table="pol_word_counts"):
+def grab_query_word_count(query_word,temp_file_list):
+    
+    # base_length = "searched__00_00_0000_00_00.txt" # key to get the correct time stamp
+    
+    if len(temp_file_list) == 1:
+        json_file = temp_file_list[0]
+        print("json file name:",json_file)
+        # directory = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/query_word_counts/{json_file}"
+        directory = json_file
+        f = open(directory)
+        data = json.load(f)
+        f.close()
+        word_ct = data[query_word]
+        return word_ct
+    
+    if len(temp_file_list) > 1:
+        temp_file_tuple_list = []
+        for file in temp_file_list:
+            temp_file_tuple_list.append((file,int(file[-10:-8])))
+    
+        # using a loop to find the maximum element and sort based on it
+        sorted_list = []
+        max_val = 0
+        for tup in temp_file_tuple_list:
+            max_val = max(tup)
+            sorted_list.append((tup, max_val))
+        sorted_list.sort(key=lambda x: x[1], reverse=True)
+        final_list = [tup[0] for tup in sorted_list]
+        json_file, _ = map(list,zip(*final_list))
+        
+        # directory = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/query_word_counts/{json_file}"
+        directory = json_file
+        f = open(directory)
+        data = json.load(f)
+        f.close()
+        word_ct = data[query_word]
+        return word_ct
+        
+        
+
+def insert_into_table(query_words_list=['nigger', 'kike', 'jew', 'jesus', 'hitler'], sql_table="pol_word_counts"):
     # insert_query = "INSERT INTO your_table_name (date, nigger, kike, jew, jesus, hitler) VALUES (%s, %s, %s, %s, %s, %s)"
 
     cursor, cnx = login_create_mysql_cursor()
     
-    data_table = {
-        "pol_word_counts": ['nigger', 'kike', 'jew', 'jesus', 'hitler']
-    }
+    # data_table = {
+    #     "pol_word_counts": ['nigger', 'kike', 'jew', 'jesus', 'hitler']
+    # }
+    now = datetime.now()
+    search_date = now.strftime("%m_%d_%Y")
     
-    words = data_table[sql_table]
     dataframe = {}
-    for word in words:
-        if word != 'date':
-            for key, item in json_query_data.items():    
-                if key == word:
-                    dataframe[key] = item
+    path = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/query_word_counts"
+    for query in query_words_list:
+        temp_list = []
+        for file in glob.glob(os.path.join(path, '*.json')):
+        # for file in files:
+            if query in file:
+                if search_date in file:
+                    temp_list.append(file)
+        if len(temp_list) == 0:
+            dataframe[query] = 0
+        if len(temp_list) >= 1:
+            dataframe[query] = grab_query_word_count(query_word=query,temp_file_list=temp_list)
+            
+    
+    # words = data_table[sql_table]
+    # dataframe = {}
+    # for word in words:
+    #     if word != 'date':
+    #         for key, item in json_query_data.items():    
+    #             if key == word:
+    #                 dataframe[key] = item
 
     insert_query = f"INSERT INTO {sql_table} (nigger, kike, jew, jesus, hitler) VALUES (%s, %s, %s, %s, %s);"
     cursor.execute(insert_query,(dataframe['nigger'],dataframe['kike'],dataframe['jew'],dataframe['jesus'],dataframe['hitler']))
     close_commit_mysql_connect(cnx,cursor)
-
-
 

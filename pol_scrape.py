@@ -21,20 +21,27 @@ readable_formatted_date = now.strftime("%m-%d-%Y")
 
 # indian_slurs = ["pajeet","poo"]
 
-def main_function(complete_run=True,sql_insert=False):
+def main_function(complete_run=True,sql_insert=False,save_thread_list=False):
     if complete_run == True:
-        thread_list = grab_thread_urls_from_catalog()
         run_vpn_and_chromedriver()
+        thread_list = grab_thread_urls_from_catalog()
+        if save_thread_list == True:
+            write_line_by_line_txt(thread_list,filename="temp_thread_list")
+        # grab_info_from_threads(thread_list)
+        print("Number of threads scraped:",len(thread_list))
         content_list = run_url_scrape(thread_list)
         count_analyze_words(content_list)
     json_data = grab_latest_json()
-    if sql_insert == True:
-        insert_into_table(json_query_data=json_data)
     print(f"Word counts on 4chan/pol/ for threads existing on: {readable_formatted_date}")
-    # query_list_match_dict = find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
+    query_list_match_dict = find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
+    if sql_insert == True:
+        insert_into_table()
     
 if __name__ == "__main__":
-    main_function(complete_run=False)
+    main_function(complete_run=True,sql_insert=True,)
 
+# if there are strange discrepancies in the data from scrape to scrape (within hours), it 
+# could be that previous threads in other scrapes have disappeared (404'd), and so 
+# those word counts went down with them
 
 

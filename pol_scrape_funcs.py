@@ -1,3 +1,4 @@
+from base64 import encode
 import requests
 import json
 import html_to_json
@@ -19,6 +20,7 @@ import codecs
 import urllib.request, urllib.error, urllib.parse
 import pathlib
 import mysql.connector
+import sys
 
 
 class MyHTMLParser(HTMLParser):
@@ -201,6 +203,30 @@ def parse_html(html_content,filename,thread_search=True):
     parsed_list = parser.parsed_list  
     return parsed_list
 
+def grab_info_from_threads(thread_list):
+    
+    """
+    grabs replies, number of images, number of posters, and any identifiable posters (and all posters in general), 
+    and cross-checking other threads to see if they post there too
+    
+    search 4chan by poster ID, then get counts of all slurs, topics, terms, etc. by poster
+    """
+    
+    
+    items = []
+    driver = get_selenium_driver()
+    containers = driver.find_element(By.XPATH, "//div[starts-with(@class=’thread-stats’)]")
+
+    print(containers)
+    
+    # list = []
+    # for thread in thread_list:
+    #     res = requests.get(thread)
+    #     soup = BeautifulSoup(res.text,'html')
+    #     for soop in soup.findAll("div"):
+    #         list.append(soop.text)
+    # write_line_by_line_txt(items,filename="looking_at_html",html=True)
+
 def grab_thread_urls_from_catalog():
     """
     grabs thread URLs from catalog page of 4chan /pol/
@@ -225,9 +251,10 @@ def grab_thread_urls_from_catalog():
                     thread_url = "https:" + item[1]
                     thread_list.append(thread_url)
 
+
     return thread_list
 
-def write_line_by_line_txt(content_list,filename,direct_address="", directory_name="defalt",):
+def write_line_by_line_txt(content_list,filename,direct_address="", directory_name="defalt",html=False):
     """
     filename: takes a filename for a txt file. Do not include '.txt' in filename.
     directory_name: either default, which is the default directory, or
@@ -253,12 +280,18 @@ def write_line_by_line_txt(content_list,filename,direct_address="", directory_na
             ct += 1
             if ct == 1:
                 direct_address = value
-
-    with open(f"{direct_address}{filename}_{formatted_date}.txt", "w") as file:
-        for line in content_list:
-            file.write(line)
-            file.write('\n')
-        file.close()
+    if html == False:
+        with open(f"{direct_address}{filename}_{formatted_date}.txt", "w") as file:
+            for line in content_list:
+                file.write(line)
+                file.write('\n')
+            file.close()
+    if html == True:
+        with open(f"{direct_address}{filename}_{formatted_date}.txt", "w",encoding="utf-8") as file:
+            for line in content_list:
+                file.write(line)
+                file.write('\n')
+            file.close()
             
     print("Txt file written. Number of lines:",len(content_list))
 
@@ -304,8 +337,8 @@ def count_analyze_words(content_list):
         words = content.split()
         for word in words:
             word_counts[word]+=1
-    file_name = f"C:/Users/mattk/Desktop/streaming_data_experiment/word_count_jsons/word_counts_{formatted_date}.json"
-    file_name_forscript = f"C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json"
+    file_name = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_jsons/word_counts_{formatted_date}.json"
+    file_name_forscript = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/word_counts_current.json"
     sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
 
     # upload word counts and post content to Mysql database
@@ -314,13 +347,13 @@ def count_analyze_words(content_list):
     with open(file_name, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
     try:
-        os.remove("C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json")
+        os.remove("C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/word_counts_current.json")
     except:
         pass
     with open(file_name_forscript, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
         
-    with open(f'C:/Users/mattk/Desktop/streaming_data_experiment/content_list_txt_files/content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
+    with open(f'C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files/content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
         for line in content_list:
             f.write(line)
             f.write('\n')
@@ -385,13 +418,14 @@ def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
     }
     now = datetime.now()
     formatted_date = now.strftime("%m_%d_%Y_%H_%M")
-    readable_formatted_date = now.strftime("%m_%d_%Y")
+    # readable_formatted_date = now.strftime("%m_%d_%Y")
     
+    simple_count_dict = {filename:count}
     
     print(f"Query:{blur_words[filename]}. Number of occurances: {count}.")
-    query_file_name = f"C:/Users/mattk/Desktop/streaming_data_experiment/query_word_counts/query_word_count_query_{filename}_{formatted_date}.json"
+    query_file_name = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/query_word_counts/query_word_count_query_{filename}_{formatted_date}.json"
     with open(query_file_name, "w") as json_file:
-        json.dump(new_count_dict, json_file,indent=4) 
+        json.dump(simple_count_dict, json_file, indent=4) 
 
 def find_similar_matches(query_list, words_dictionary, threshold=80):
 
@@ -445,7 +479,7 @@ def search_content(search_word, search_date="",query_dict={}):
         search_date = search_date
     else:
         search_date = now.strftime("%m_%d_%Y")
-    folder_path = "C:/Users/mattk/Desktop/streaming_data_experiment/content_list_txt_files"
+    folder_path = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files"
     for root, dirs, files in os.walk(folder_path):
         for file in files:
             if f"{search_date}" in file:
@@ -453,10 +487,8 @@ def search_content(search_word, search_date="",query_dict={}):
                 print(file)
                 break
     this_one = folder_path + "/" + this_one
+    
     searched_content = []
-    
-    
-    
     with open(this_one,"r",encoding="utf-8") as file:
         for f in file:
             if search_word in f:
@@ -465,7 +497,7 @@ def search_content(search_word, search_date="",query_dict={}):
     
     print(len(searched_content))
     search_date = now.strftime("%m_%d_%Y_%H_%M")
-    file_path = f"C:/Users/mattk/Desktop/streaming_data_experiment/content_list_txt_files/searched_{search_word}_{search_date}.txt"
+    file_path = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files/searched_{search_word}_{search_date}.txt"
     with open(file_path,"w",encoding="utf-8") as file:
         for s in searched_content:
             file.write(s)
@@ -476,7 +508,7 @@ def grab_latest_json():
     """
     grab latest json file to build dictionary for matching function
     """
-    directory = "C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json"
+    directory = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/word_counts_current.json"
     f = open(directory)
     data = json.load(f)
     f.close()
