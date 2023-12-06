@@ -1,4 +1,5 @@
 from base64 import encode
+from concurrent.futures import thread
 import requests
 import json
 import html_to_json
@@ -21,6 +22,7 @@ import urllib.request, urllib.error, urllib.parse
 import pathlib
 import mysql.connector
 import sys
+import re
 
 
 class MyHTMLParser(HTMLParser):
@@ -203,56 +205,161 @@ def parse_html(html_content,filename,thread_search=True):
     parsed_list = parser.parsed_list  
     return parsed_list
 
-def grab_info_from_threads(thread_list):
+class scrape_pol_class():
     
-    """
-    grabs replies, number of images, number of posters, and any identifiable posters (and all posters in general), 
-    and cross-checking other threads to see if they post there too
-    
-    search 4chan by poster ID, then get counts of all slurs, topics, terms, etc. by poster
-    """
-    
-    
-    items = []
-    driver = get_selenium_driver()
-    containers = driver.find_element(By.XPATH, "//div[starts-with(@class=’thread-stats’)]")
+    def __init__(self):
+        self.thread_list = []
+        self.replies_left = 0
+        self.urls_left = 0
+        
+    def give_number_left(self, num_urls, num_replies, url_ct, reply_ct):
+        url_left = num_urls - url_ct
+        reply_left = num_replies - reply_ct
+        if reply_ct == 1:
+            print(f"||||| {url_left} URLS left to scrape |||||")
+        print("REPLIES left:", reply_left)
 
-    print(containers)
-    
-    # list = []
-    # for thread in thread_list:
-    #     res = requests.get(thread)
-    #     soup = BeautifulSoup(res.text,'html')
-    #     for soop in soup.findAll("div"):
-    #         list.append(soop.text)
-    # write_line_by_line_txt(items,filename="looking_at_html",html=True)
+    def grab_info_from_threads(self, thread_list, return_dataframe = False):
+        
+        """
+        grabs replies, number of images, number of posters, and any identifiable posters (and all posters in general), 
+        and cross-checking other threads to see if they post there too
+        
+        search 4chan by poster ID, then get counts of all slurs, topics, terms, etc. by poster
+        """
+        
+        
+        XPTHS = ["/html/body/div[10]/div/span[1]","/html/body/div[10]/div/span[3]"] 
+        thread_dict_list = []
+        url_ct = 0
+        thread_list_len = len(thread_list)
+        shortend_threads = []
+        for url in thread_list:
+            thread_dict = {}
+            url_ct += 1
+            driver = get_selenium_driver()
+            driver.get(url)
+            driver.implicitly_wait(3) # wait a few seconds for driver to catch up to the request
+            
+            pattern = r"\b\d{9}\b"
+            match = re.search(pattern, url)
+            thread_dict['thread_number'] = match.group()
+            # print("url:",url)
+            # print("match.group():", match.group())
+            shortend_threads.append(match.group())
 
-def grab_thread_urls_from_catalog():
-    """
-    grabs thread URLs from catalog page of 4chan /pol/
-    
-    https://boards.4chan.org/pol/catalog
-    """
-    pol_cat_url = "https://boards.4chan.org/pol/catalog"
-    
-    driver = get_selenium_driver()
-    driver.get(pol_cat_url)
-    time.sleep(5)
-    
-    html_content = driver.page_source
+            try:
+                elem = driver.find_elements(By.XPATH, XPTHS[0]) # grab thread reply count by xpath # right-click the element in the browser and copy the xpath
 
-    the_list = parse_html(html_content=html_content,filename="4chan_catalog_pol")
-    thread_list = []
-    for item in the_list:
-        print(item)
-        if item[0] == 'href':
-            if "/pol/thread/" in item[1]:
-                if item[1] not in thread_list:
-                    thread_url = "https:" + item[1]
-                    thread_list.append(thread_url)
+                for el in elem:
+                    thread_dict["num_replies"] = int(el.text)
+            except:
+                thread_dict["num_replies"] = 0
 
+            try: 
+                elem = driver.find_elements(By.XPATH, XPTHS[1]) # grab thread reply count by xpath # right-click the element in the browser and copy the xpath
+                for el in elem:
+                    thread_dict["num_posters"] = int(el.text)
+            except:
+                thread_dict["num_posters"] = 0
+            urls_left = thread_list_len - url_ct
+            # print("urls left:", urls_left)
+            thread_dict_list.append(thread_dict)
+        if return_dataframe == True:
+            thread_dict = pd.DataFrame(thread_dict_list)
+        else:
+            thread_dict = merge_dicts(thread_dict_list)
+        return [thread_dict, shortend_threads]
 
-    return thread_list
+    def grab_all_replies(self, thread_dict, shortend_threads):
+        
+        thread_reply_dict_list = []
+
+        thread_nums = thread_dict['thread_number']
+        num_replies = thread_dict['num_replies']
+        pairs = zip(thread_nums, num_replies)
+        url_ct = 0
+        for thread_number, num_reply in pairs:
+            URL_ = f"https://boards.4chan.org/pol/thread/{thread_number}"
+            reply_ct = 0
+            thread_reply_dict = {
+                "thread":thread_number,
+            }
+            REPLY_CT = num_reply
+            replies_list = []
+            if REPLY_CT > 0: # break death loop on threads with no replies
+                url_ct += 1
+                try:
+                    while reply_ct <= REPLY_CT:
+                        reply_ct += 1
+                        scrape = scrape_pol_class()
+                        scrape.give_number_left(num_urls=len(thread_nums),num_replies=REPLY_CT,url_ct=url_ct,reply_ct=reply_ct)
+                        driver = get_selenium_driver()
+                        driver.get(URL_)
+                        # driver.implicitly_wait() # wait a few seconds for driver to catch up to the request
+                        try:
+                            elem = driver.find_elements(By.XPATH, f"/html/body/form[2]/div[1]/div[1]/div[{reply_ct}]/div[2]/blockquote") # grab thread reply count by xpath # right-click the element in the browser and copy the xpath
+                            for el in elem:
+                                # print("el.text::",el.text)
+                                print("reply_ct:",reply_ct)
+                                replies_list.append(el.text) 
+                        except Exception as error:
+                            print('error:', Exception)
+                            replies_list.append(f"ERROR: {Exception}") 
+                    thread_reply_dict['post_replies'] = replies_list
+                    thread_reply_dict_list.append(thread_reply_dict)
+                except:
+                    replies_list.append("")
+                    thread_reply_dict['post_replies'] = replies_list
+                    thread_reply_dict_list.append(thread_reply_dict)
+            if REPLY_CT == 0:
+                url_ct += 1
+            
+        write_json(dictionary_list = thread_reply_dict_list,file_name="test")
+        return thread_reply_dict_list
+
+    def grab_thread_urls_from_catalog(self,self_list = False):
+        """
+        grabs thread URLs from catalog page of 4chan /pol/
+        
+        https://boards.4chan.org/pol/catalog
+        """
+        pol_cat_url = "https://boards.4chan.org/pol/catalog"
+        
+        driver = get_selenium_driver()
+        driver.get(pol_cat_url)
+        time.sleep(5)
+        
+        html_content = driver.page_source
+
+        the_list = parse_html(html_content=html_content,filename="4chan_catalog_pol")
+        thred_list = []
+        for item in the_list:
+            # print(item)
+            if item[0] == 'href':
+                if "/pol/thread/" in item[1]:
+                    if item[1] not in thred_list:
+                        thread_url = "https:" + item[1]
+                        thred_list.append(thread_url)
+
+        if self_list == True:
+            self.thread_list = thred_list
+        return thred_list
+
+def write_json(dictionary={},file_name = "oops_nofilename", dictionary_list = []):
+    if dictionary_list != []:
+        dictionary = merge_dicts(dictionary_list)
+        now = datetime.now()
+        formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+        path = f"replies_dictionary/{file_name}_{formatted_date}.json"
+        with open(path, "w") as json_file:
+            json.dump(dictionary, json_file, indent=4) 
+    if dictionary_list == []:
+        now = datetime.now()
+        formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+        path = f"replies_dictionary/{file_name}_{formatted_date}.json"
+        with open(path, "w") as json_file:
+            json.dump(dictionary, json_file, indent=4) 
 
 def write_line_by_line_txt(content_list,filename,direct_address="", directory_name="defalt",html=False):
     """
@@ -381,10 +488,14 @@ def merge_dicts(dicts_list):
     """
     merge together dictionaries
     """
-    merged_dict = {}
+    merge_dict = {}
     for d in dicts_list:
-        merged_dict.update(d)
-    return merged_dict
+        for key, value in d.items():
+            # Create an entry in the merged dictionary for each key
+            if key not in merge_dict:
+                merge_dict[key] = []
+            merge_dict[key].append(value)
+    return merge_dict
 
 def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
 
@@ -414,11 +525,26 @@ def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
         "white":"white",
         "jesus":"jesus",
         "christian":"christian",
-        "muslim":"muslim"
+        "muslim":"muslim",
+        "troon":"troon",
+        "tranny":"tranny",
+        "genocide":"genocide",
+        "kill":"kill",
+        "goy":"goy",
+        "globohomo":"globohomo", # aka, colonial imperialism as it defined by russian-style fascists; or perhaps some NWO-style plan by the globalists (jews) as defined by conservatives
+        "globalist":"globalist",
+        "fren":"fren",
+        "comfy":"comfy",
+        "pogrom":"pogrom",
+        "society":"society",
+        "collapse":"collapse",
+        "kosher":"kosher",
+        "blood":"blood",
+        "vermin":"vermin"
     }
     now = datetime.now()
     formatted_date = now.strftime("%m_%d_%Y_%H_%M")
-    # readable_formatted_date = now.strftime("%m_%d_%Y")
+    # readable_formatted_date = now.strftime("%m_%d_%Y") 
     
     simple_count_dict = {filename:count}
     
@@ -468,7 +594,7 @@ def find_similar_matches(query_list, words_dictionary, threshold=80):
             print("no matches for query:",query)
         
         get_counts_for_queries(matches,words_dictionary,filename=query)
-    return merge_dicts(match_dict_list)
+    # return merge_dicts(match_dict_list)
      
 def search_content(search_word, search_date="",query_dict={}):   
     """
