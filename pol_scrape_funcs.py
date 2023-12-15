@@ -23,7 +23,57 @@ import pathlib
 import mysql.connector
 import sys
 import re
+import random
 
+WEBDRIVER_PATH = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
+PARSE_HTML_FILE_PATH = 'C:/Users/mattk/Desktop/streaming_data_experiment/html_file/'
+DEFAULT_TXT_FILES_PATH = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/txt_files/"
+WORD_COUNT_JSON_CURRENTS_PATH ="C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_jsons/"
+CONTENT_LIST_TXT_FILES_PATH = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files/"
+QUERY_WORD_COUNTS_PATH = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/query_word_counts/"
+
+PATHS_LIST = [
+    WEBDRIVER_PATH,
+PARSE_HTML_FILE_PATH,
+DEFAULT_TXT_FILES_PATH,
+WORD_COUNT_JSON_CURRENTS_PATH,
+CONTENT_LIST_TXT_FILES_PATH,
+QUERY_WORD_COUNTS_PATH 
+]
+
+def provide_save_path(folder_path):
+    
+    """
+    
+    WEBDRIVER_PATH = chromedriver.exe
+    PARSE_HTML_FILE_PATH = html_file
+    DEFAULT_TXT_FILES_PATH = txt_files
+    WORD_COUNT_JSON_CURRENTS_PATH = word_count_jsons
+    CONTENT_LIST_TXT_FILES_PATH = content_list_txt_files
+    QUERY_WORD_COUNTS_PATH = query_word_counts
+    
+    """
+    
+    for path in PATHS_LIST:
+        if folder_path in path:
+            THE_PATH = path
+            pass
+    return THE_PATH
+
+def give_date_and_time(hours=False):
+    now = datetime.now()
+    if hours == True:
+        formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+    else:
+        formatted_date = now.strftime("%m_%d_%Y")
+    return formatted_date
+
+class gosh_darn_match_date():
+    """
+    this is for grabbing specific "word_count_current" json files by a given match_date
+    """
+    def __init__(self):
+        self.latest_scrape_specific_match_date = ""
 
 class MyHTMLParser(HTMLParser):
     """
@@ -178,7 +228,7 @@ def get_selenium_driver():
     """
     returns webdriver so selenium can be implemented more easily
     """
-    webdriver_path = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
+    webdriver_path = WEBDRIVER_PATH
     service = Service(executable_path=webdriver_path)
     options = webdriver.ChromeOptions()
     driver = webdriver.Chrome(service=service, options=options)    
@@ -189,7 +239,7 @@ def parse_html(html_content,filename,thread_search=True):
     takes html_content from selenium page_source output
     takes a filename
     """
-    file_name = f'C:/Users/mattk/Desktop/streaming_data_experiment/html_file/{filename}.html'
+    file_name = PARSE_HTML_FILE_PATH + filename + '.html'
 
     with open(file_name, 'w', encoding='utf-8') as file:
         file.write(html_content)
@@ -347,16 +397,15 @@ class scrape_pol_class():
         return thred_list
 
 def write_json(dictionary={},file_name = "oops_nofilename", dictionary_list = []):
+    
     if dictionary_list != []:
         dictionary = merge_dicts(dictionary_list)
-        now = datetime.now()
-        formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+        formatted_date = give_date_and_time(hours=True)
         path = f"replies_dictionary/{file_name}_{formatted_date}.json"
         with open(path, "w") as json_file:
             json.dump(dictionary, json_file, indent=4) 
     if dictionary_list == []:
-        now = datetime.now()
-        formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+        formatted_date = give_date_and_time(hours=True)
         path = f"replies_dictionary/{file_name}_{formatted_date}.json"
         with open(path, "w") as json_file:
             json.dump(dictionary, json_file, indent=4) 
@@ -368,11 +417,10 @@ def write_line_by_line_txt(content_list,filename,direct_address="", directory_na
     it takes whatever directory you give it, with a forward slash on the end
     """
     
-    now = datetime.now()
-    formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+    formatted_date = give_date_and_time(hours=True)
     
     directory_dict = {
-        "default":"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/txt_files/",
+        "default":DEFAULT_TXT_FILES_PATH,
         f"{directory_name}":f"{direct_address}"
     }
     if directory_name == "defalt":
@@ -402,6 +450,64 @@ def write_line_by_line_txt(content_list,filename,direct_address="", directory_na
             
     print("Txt file written. Number of lines:",len(content_list))
 
+def split_into_sentences(content_list):
+    """
+    
+    GRABBED THIS FUNCTION FROM HERE: https://stackoverflow.com/questions/4576077/how-can-i-split-a-text-into-sentences
+    I MODIFIED IT SOMEWHAT.
+    
+    Split the text into sentences.
+
+    If the text contains substrings "<prd>" or "<stop>", they would lead 
+    to incorrect splitting because they are used as markers for splitting.
+
+    :param text: text to be split into sentences
+    :type text: str
+
+    :return: list of sentences
+    :rtype: list[str]
+    """
+    all_sentences = []
+    # -*- coding: utf-8 -*-
+    alphabets= "([A-Za-z])"
+    prefixes = "(Mr|St|Mrs|Ms|Dr)[.]"
+    suffixes = "(Inc|Ltd|Jr|Sr|Co)"
+    starters = "(Mr|Mrs|Ms|Dr|Prof|Capt|Cpt|Lt|He\s|She\s|It\s|They\s|Their\s|Our\s|We\s|But\s|However\s|That\s|This\s|Wherever)"
+    acronyms = "([A-Z][.][A-Z][.](?:[A-Z][.])?)"
+    websites = "[.](com|net|org|io|gov|edu|me)"
+    digits = "([0-9])"
+    multiple_dots = r'\.{2,}'
+    
+    for text in content_list:
+        text = " " + text + "  "
+        text = text.replace("\n"," ")
+        text = re.sub(prefixes,"\\1<prd>",text)
+        text = re.sub(websites,"<prd>\\1",text)
+        text = re.sub(digits + "[.]" + digits,"\\1<prd>\\2",text)
+        text = re.sub(multiple_dots, lambda match: "<prd>" * len(match.group(0)) + "<stop>", text)
+        if "Ph.D" in text: text = text.replace("Ph.D.","Ph<prd>D<prd>")
+        text = re.sub("\s" + alphabets + "[.] "," \\1<prd> ",text)
+        text = re.sub(acronyms+" "+starters,"\\1<stop> \\2",text)
+        text = re.sub(alphabets + "[.]" + alphabets + "[.]" + alphabets + "[.]","\\1<prd>\\2<prd>\\3<prd>",text)
+        text = re.sub(alphabets + "[.]" + alphabets + "[.]","\\1<prd>\\2<prd>",text)
+        text = re.sub(" "+suffixes+"[.] "+starters," \\1<stop> \\2",text)
+        text = re.sub(" "+suffixes+"[.]"," \\1<prd>",text)
+        text = re.sub(" " + alphabets + "[.]"," \\1<prd>",text)
+        if "”" in text: text = text.replace(".”","”.")
+        if "\"" in text: text = text.replace(".\"","\".")
+        if "!" in text: text = text.replace("!\"","\"!")
+        if "?" in text: text = text.replace("?\"","\"?")
+        text = text.replace(".",".<stop>")
+        text = text.replace("?","?<stop>")
+        text = text.replace("!","!<stop>")
+        text = text.replace("<prd>",".")
+        sentences = text.split("<stop>")
+        sentences = [s.strip() for s in sentences]
+        if sentences and not sentences[-1]: sentences = sentences[:-1]
+        for sentence in sentences:
+            all_sentences.append(sentence)
+    return all_sentences
+
 def count_analyze_words(content_list):
     
     """
@@ -419,8 +525,7 @@ def count_analyze_words(content_list):
     
     """
     
-    now = datetime.now()
-    formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+    formatted_date = give_date_and_time(hours=True)
     
     from collections import defaultdict
     word_counts = defaultdict(int)
@@ -444,8 +549,10 @@ def count_analyze_words(content_list):
         words = content.split()
         for word in words:
             word_counts[word]+=1
-    file_name = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_jsons/word_counts_{formatted_date}.json"
-    file_name_forscript = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/word_counts_current.json"
+    file_name = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_{formatted_date}.json"
+    file_name_forscript = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{formatted_date}.json"
+    gosh_darn = gosh_darn_match_date()
+    gosh_darn.latest_scrape_specific_match_date = formatted_date
     sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
 
     # upload word counts and post content to Mysql database
@@ -453,14 +560,11 @@ def count_analyze_words(content_list):
     
     with open(file_name, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
-    try:
-        os.remove("C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/word_counts_current.json")
-    except:
-        pass
+
     with open(file_name_forscript, "w") as json_file:
         json.dump(sorted_dict, json_file,indent=4) 
-        
-    with open(f'C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files/content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
+    
+    with open(f'{CONTENT_LIST_TXT_FILES_PATH}content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
         for line in content_list:
             f.write(line)
             f.write('\n')
@@ -540,16 +644,16 @@ def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
         "collapse":"collapse",
         "kosher":"kosher",
         "blood":"blood",
-        "vermin":"vermin"
+        "vermin":"vermin",
+        "shitskin":"shitskin"
     }
-    now = datetime.now()
-    formatted_date = now.strftime("%m_%d_%Y_%H_%M")
+    formatted_date = give_date_and_time(hours=True)
     # readable_formatted_date = now.strftime("%m_%d_%Y") 
     
     simple_count_dict = {filename:count}
     
     print(f"Query:{blur_words[filename]}. Number of occurances: {count}.")
-    query_file_name = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/query_word_counts/query_word_count_query_{filename}_{formatted_date}.json"
+    query_file_name = f"{QUERY_WORD_COUNTS_PATH}query_word_count_query_{filename}_{formatted_date}.json"
     with open(query_file_name, "w") as json_file:
         json.dump(simple_count_dict, json_file, indent=4) 
 
@@ -605,7 +709,7 @@ def search_content(search_word, search_date="",query_dict={}):
         search_date = search_date
     else:
         search_date = now.strftime("%m_%d_%Y")
-    folder_path = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files"
+    folder_path = CONTENT_LIST_TXT_FILES_PATH
     for root, dirs, files in os.walk(folder_path):
         for file in files:
             if f"{search_date}" in file:
@@ -623,7 +727,7 @@ def search_content(search_word, search_date="",query_dict={}):
     
     print(len(searched_content))
     search_date = now.strftime("%m_%d_%Y_%H_%M")
-    file_path = f"C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/content_list_txt_files/searched_{search_word}_{search_date}.txt"
+    file_path = f"{CONTENT_LIST_TXT_FILES_PATH}searched_{search_word}_{search_date}.txt"
     with open(file_path,"w",encoding="utf-8") as file:
         for s in searched_content:
             file.write(s)
@@ -634,7 +738,8 @@ def grab_latest_json():
     """
     grab latest json file to build dictionary for matching function
     """
-    directory = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/word_count_current/word_counts_current.json"
+    gosh_darn = gosh_darn_match_date()
+    directory = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{gosh_darn.latest_scrape_specific_match_date}.json"
     f = open(directory)
     data = json.load(f)
     f.close()

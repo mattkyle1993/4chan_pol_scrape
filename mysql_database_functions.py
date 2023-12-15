@@ -28,7 +28,10 @@ def grab_latest_json():
     """
     grab latest json file to build dictionary for matching function
     """
-    directory = "C:/Users/mattk/Desktop/streaming_data_experiment/word_count_current/word_counts_current.json"
+    
+    the_path = provide_save_path(folder_path="word_count_current")
+    
+    directory = f"{the_path}word_counts_current.json"
     f = open(directory)
     data = json.load(f)
     f.close()

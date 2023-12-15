@@ -22,13 +22,14 @@ word_query_list = ["nigger","kike","jew","white","jesus",
                    "tranny","genocide","kill","goy",
                    "globalist","fren","comfy","globohomo",
                    "pogrom","society","collapse",
-                   "blood","kosher","vermin"] # e.g., n-word, k-word, etc.
-now = datetime.now()
-readable_formatted_date = now.strftime("%m-%d-%Y")
+                   "blood","kosher","vermin","military","pajeet",
+                   "shitskin"] # e.g., n-word, k-word, etc.
+
+formatted_date = give_date_and_time(hours=True)
 
 # indian_slurs = ["pajeet","poo"]
 
-def main_function(complete_run=False,sql_insert=False,save_thread_list=False,choose_thread=""):
+def main_function(complete_run=False,sql_insert=False,save_thread_list=False,choose_thread="",random_grab=0):
     if complete_run == True:
         run_vpn_and_chromedriver()
         scrape = scrape_pol_class()
@@ -44,32 +45,29 @@ def main_function(complete_run=False,sql_insert=False,save_thread_list=False,cho
         if choose_thread == "":
             print("grabbing all threads")
             thread_list = scrape.grab_thread_urls_from_catalog()
-            thread_list = thread_list[2:4]
+            if random_grab > 0:
+                thread_list = random.sample(thread_list,k=random_grab) 
         if save_thread_list == True:
             write_line_by_line_txt(thread_list,filename="temp_thread_list")
         thread_dict, shortened_threads = scrape.grab_info_from_threads(thread_list)
         write_json(thread_dict,file_name="thread_dict")
-        thread_reply_dict_list = scrape.grab_all_replies(thread_dict,shortened_threads)
+        # thread_reply_dict_list = scrape.grab_all_replies(thread_dict,shortened_threads)
         print("Number of threads scraped:",len(thread_list))
         content_list = run_url_scrape(thread_list)
+        # all_sentences = split_into_sentences(content_list=content_list)
+        # write_line_by_line_txt(content_list=all_sentences,filename="test_all_sentences",html=True)
         count_analyze_words(content_list)
     json_data = grab_latest_json()
-    print(f"Word counts on 4chan/pol/ for threads existing on: {readable_formatted_date}")
+    print(f"Word counts on 4chan/pol/ for threads existing on: {formatted_date}")
     # query_list_match_dict = find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
     find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
     if sql_insert == True:
         print("test")
-        # insert_into_table(sql_table="pol_word_counts")
+        insert_into_table(sql_table="pol_word_counts")
         # insert_into_table(sql_table="thread_stats_info",thread_list=thread_list)
     
 if __name__ == "__main__":
-    main_function(complete_run=True,sql_insert=True,save_thread_list=True,choose_thread=[
-        "https://boards.4chan.org/pol/thread/451088072",
-        "https://boards.4chan.org/pol/thread/451086113",
-        "https://boards.4chan.org/pol/thread/451090789",
-        "https://boards.4chan.org/pol/thread/451088971",
-        "https://boards.4chan.org/pol/thread/451092402"
-        ])
+    main_function(complete_run=True,save_thread_list=True,sql_insert=True,random_grab=2)
 
 # if there are strange discrepancies in the data from scrape to scrape (within hours), it 
 # could be that previous threads in other scrapes have disappeared (404'd), and so 
@@ -77,3 +75,10 @@ if __name__ == "__main__":
 
 # /html/body/form[2]/div[1]/div[1]/div[7]/div[2]/div[3]/a/img
 # /html/body/form[2]/div[1]/div[1]/div[2]/div[2]/div[3]/a/img
+
+# Las vegas December 6th (?), 2023 mass shooting 4chan/pol/ responses:
+#         # "https://boards.4chan.org/pol/thread/451088072",
+#         # "https://boards.4chan.org/pol/thread/451086113",
+#         # "https://boards.4chan.org/pol/thread/451090789",
+#         # "https://boards.4chan.org/pol/thread/451088971",
+#         # "https://boards.4chan.org/pol/thread/451092402"
