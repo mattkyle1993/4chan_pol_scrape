@@ -488,6 +488,7 @@ def split_into_sentences(content_list):
     GRABBED THIS FUNCTION FROM HERE: https://stackoverflow.com/questions/4576077/how-can-i-split-a-text-into-sentences
     I MODIFIED IT SOMEWHAT.
     
+    
     Split the text into sentences.
 
     If the text contains substrings "<prd>" or "<stop>", they would lead 

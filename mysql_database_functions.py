@@ -149,7 +149,8 @@ def insert_into_table(query_words_list=['nigger', 'kike', 'jew', 'jesus', 'hitle
     #     #     columns=", ".join(thread_dict.keys()),
     #     #     value_placeholders=", ".join(["?"] * len(thread_dict)),
     #     # )
-
+  
+  
     #     # cursor.execute(query, list(thread_dict.values()))
     #     # print("test 1")
     #     for i in range(len(thread_dict['thread_number'])):

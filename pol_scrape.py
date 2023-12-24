@@ -26,6 +26,7 @@ word_query_list = ["nigger","kike","jew","white","jesus",
                    "shitskin"] # e.g., n-word, k-word, etc.
 
         
+    
         
 if __name__ == "__main__":
     main = MainScrapeFunc()
