@@ -1,4 +1,9 @@
 sql_creds.py
+word_queries_input.py
+twitter_media_scrape.py
+testing_script.py
+talk_speech.py
+pol_scrape_test.py
 *.json
 *.txt
 *.jpg
