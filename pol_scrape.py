@@ -13,8 +13,10 @@ from fuzzywuzzy import fuzz, process
 import math
 from pol_scrape_funcs import * 
 from mysql_database_functions import * 
+from word_queries_input import *
 import re
 
+<<<<<<< HEAD
 # list of specific words to search for and find matches using fuzzy wuzzy
 
 word_query_list = ["nigger","kike","jew","white","jesus",
@@ -27,10 +29,13 @@ word_query_list = ["nigger","kike","jew","white","jesus",
 
         
         
+=======
+>>>>>>> testing
 if __name__ == "__main__":
     main = MainScrapeFunc()
     main.minimize_or_hide(minimize=True)
     main.main_function(
+<<<<<<< HEAD
                         word_query_list=word_query_list,
                         complete_run=True,
                         save_thread_list=True,
@@ -51,3 +56,11 @@ if __name__ == "__main__":
 #         # "https://boards.4chan.org/pol/thread/451090789",
 #         # "https://boards.4chan.org/pol/thread/451088971",
 #         # "https://boards.4chan.org/pol/thread/451092402"
+=======
+                        word_query_list=[],
+                        complete_run=True,
+                        save_thread_list=True,
+                        sql_insert=False, 
+                        grab=15
+                       )
+>>>>>>> testing

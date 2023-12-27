@@ -55,5 +55,4 @@ class AppServerSvc (win32serviceutil.ServiceFramework):
 if __name__ == '__main__':
     win32serviceutil.HandleCommandLine(AppServerSvc)
     
-    
 # Windows task scheduler: start up script on computer start:
