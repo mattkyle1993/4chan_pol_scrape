@@ -1,0 +1,8 @@
+sql_creds.py
+*.json
+*.txt
+*.jpg
+*.png
+*.pyc
+/html_file/*
+/word_count_current/*

@@ -21,25 +21,26 @@ import codecs
 import urllib.request, urllib.error, urllib.parse
 import pathlib
 import mysql.connector
-from pol_scrape_funcs import *
+# from pol_scrape_funcs import *
 import re
+from sql_creds import *
 
-def grab_latest_json():
-    """
-    grab latest json file to build dictionary for matching function
-    """
+# def grab_latest_json():
+#     """
+#     grab latest json file to build dictionary for matching function
+#     """
     
-    the_path = provide_save_path(folder_path="word_count_current")
+#     the_path = provide_save_path(folder_path="word_count_current")
     
-    directory = f"{the_path}word_counts_current.json"
-    f = open(directory)
-    data = json.load(f)
-    f.close()
-    return data
+#     directory = f"{the_path}word_counts_current.json"
+#     f = open(directory)
+#     data = json.load(f)
+#     f.close()
+#     return data
 
 def login_create_mysql_cursor(): 
     try:
-        cnx = mysql.connector.connect(user='root', password='fakeTrick56%',
+        cnx = mysql.connector.connect(user=MYSQL_USER, password=MYSQL_PASSWORD,
                                     host='127.0.0.1',
                                     database='4chan_pol_scrape')
     except:
@@ -101,7 +102,7 @@ def insert_into_table(query_words_list=['nigger', 'kike', 'jew', 'jesus', 'hitle
     # insert_query = "INSERT INTO your_table_name (date, nigger, kike, jew, jesus, hitler) VALUES (%s, %s, %s, %s, %s, %s)"
 
     cursor, cnx = login_create_mysql_cursor()
-    print("test 0.01")
+    # print("test 0.01")
     
     data_table = {
         "pol_word_counts": ['nigger', 'kike', 'jew', 'jesus', 'hitler'],
@@ -112,7 +113,7 @@ def insert_into_table(query_words_list=['nigger', 'kike', 'jew', 'jesus', 'hitle
     if sql_table == "pol_word_counts":
         dataframe = {}
         path = "C:/Users/mattk/Documents/GitHub/4chan_pol_scrape/query_word_counts"
-        print("test 2")
+        # print("test 2")
         for query in query_words_list:
             temp_list = []
             for file in glob.glob(os.path.join(path, '*.json')):
@@ -136,30 +137,30 @@ def insert_into_table(query_words_list=['nigger', 'kike', 'jew', 'jesus', 'hitle
 
         insert_query = f"INSERT INTO {sql_table} (nigger, kike, jew, jesus, hitler) VALUES (%s, %s, %s, %s, %s);"
         cursor.execute(insert_query,(dataframe['nigger'],dataframe['kike'],dataframe['jew'],dataframe['jesus'],dataframe['hitler']))
-        print("test 3")
-    if sql_table == "thread_stats_info":
-        print("test 0.1")
-        if thread_list != []:
-            thread_dict, _ = scrape_pol_class.grab_info_from_threads(thread_list)
-        if len(thread_list) == 0:
-            thread_dict = thread_dict
-        # columns = {row.column_name for row in cursor.columns(table='thread_stats_info')}
-        # query = "INSERT INTO TABLEabc ({columns}) VALUES ({value_placeholders})".format(
-        #     columns=", ".join(thread_dict.keys()),
-        #     value_placeholders=", ".join(["?"] * len(thread_dict)),
-        # )
+        # print("test 3")
+    # if sql_table == "thread_stats_info":
+    #     # print("test 0.1")
+    #     if thread_list != []:
+    #         # thread_dict, _ = scrape_pol_class.grab_info_from_threads(thread_list)
+    #     if len(thread_list) == 0:
+    #         thread_dict = thread_dict
+    #     # columns = {row.column_name for row in cursor.columns(table='thread_stats_info')}
+    #     # query = "INSERT INTO TABLEabc ({columns}) VALUES ({value_placeholders})".format(
+    #     #     columns=", ".join(thread_dict.keys()),
+    #     #     value_placeholders=", ".join(["?"] * len(thread_dict)),
+    #     # )
 
-        # cursor.execute(query, list(thread_dict.values()))
-        print("test 1")
-        for i in range(len(thread_dict['thread_number'])):
-            print("test 0.0001")
-            replies = thread_dict['num_replies'][i]
-            posters = thread_dict['num_posters'][i]
-            thread_num = thread_dict['thread_number'][i]
+    #     # cursor.execute(query, list(thread_dict.values()))
+    #     # print("test 1")
+    #     for i in range(len(thread_dict['thread_number'])):
+    #         # print("test 0.0001")
+    #         replies = thread_dict['num_replies'][i]
+    #         posters = thread_dict['num_posters'][i]
+    #         thread_num = thread_dict['thread_number'][i]
             
-            sql = "INSERT INTO thread_stats_info (num_replies, num_posters, thread_number) VALUES (%s, %s, %s);"
+    #         sql = "INSERT INTO thread_stats_info (num_replies, num_posters, thread_number) VALUES (%s, %s, %s);"
             
-            cursor.execute(sql, (replies, posters, thread_num))
-            print("test 5")
+    #         cursor.execute(sql, (replies, posters, thread_num))
+    #         # print("test 5")
         
     close_commit_mysql_connect(cnx,cursor)

@@ -10,6 +10,7 @@ import glob
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
 import pandas as pd
 from datetime import datetime
 import time
@@ -24,6 +25,10 @@ import mysql.connector
 import sys
 import re
 import random
+import collections
+from mysql_database_functions import * 
+
+SLEEP_LEN = 3
 
 WEBDRIVER_PATH = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
 PARSE_HTML_FILE_PATH = 'C:/Users/mattk/Desktop/streaming_data_experiment/html_file/'
@@ -53,12 +58,12 @@ def provide_save_path(folder_path):
     QUERY_WORD_COUNTS_PATH = query_word_counts
     
     """
-    
+    THE_PATH = ""
     for path in PATHS_LIST:
         if folder_path in path:
-            THE_PATH = path
-            pass
+            THE_PATH = folder_path
     return THE_PATH
+
 
 def give_date_and_time(hours=False):
     now = datetime.now()
@@ -68,12 +73,6 @@ def give_date_and_time(hours=False):
         formatted_date = now.strftime("%m_%d_%Y")
     return formatted_date
 
-class gosh_darn_match_date():
-    """
-    this is for grabbing specific "word_count_current" json files by a given match_date
-    """
-    def __init__(self):
-        self.latest_scrape_specific_match_date = ""
 
 class MyHTMLParser(HTMLParser):
     """
@@ -195,10 +194,6 @@ def beaut_soup_grab(url,find_all='div',div_class=""):
     return divs
 
 def run_url_scrape(url_list):
-    # code to automate grabbing URL's: TO BE CODED
-    # sample URLs. These are likely deadlinks.
-    
-    # get latest date and sort div's by that
     now = datetime.now()
     search_date = now.strftime("%m/%d/%y")
 
@@ -224,16 +219,6 @@ def run_url_scrape(url_list):
             
     return content_list
 
-def get_selenium_driver():
-    """
-    returns webdriver so selenium can be implemented more easily
-    """
-    webdriver_path = WEBDRIVER_PATH
-    service = Service(executable_path=webdriver_path)
-    options = webdriver.ChromeOptions()
-    driver = webdriver.Chrome(service=service, options=options)    
-    return driver
-
 def parse_html(html_content,filename,thread_search=True): 
     """
     takes html_content from selenium page_source output
@@ -255,13 +240,29 @@ def parse_html(html_content,filename,thread_search=True):
     parsed_list = parser.parsed_list  
     return parsed_list
 
+def merge_nested_dicts(dict_list):
+    """
+    Merge a list of nested dictionaries with the same key names.
+    """
+    merged_dict = {}
+    for d in dict_list:
+        for key, value in d.items():
+            if key in merged_dict:
+                if isinstance(value, dict) and isinstance(merged_dict[key], dict):
+                    # Recursively merge nested dictionaries
+                    merged_dict[key] = merge_nested_dicts([merged_dict[key], value])
+                else:
+                    # Combine values for the same key
+                    if isinstance(merged_dict[key], list):
+                        merged_dict[key].append(value)
+                    else:
+                        merged_dict[key] = [merged_dict[key], value]
+            else:
+                merged_dict[key] = value
+    return merged_dict
+
 class scrape_pol_class():
     
-    def __init__(self):
-        self.thread_list = []
-        self.replies_left = 0
-        self.urls_left = 0
-        
     def give_number_left(self, num_urls, num_replies, url_ct, reply_ct):
         url_left = num_urls - url_ct
         reply_left = num_replies - reply_ct
@@ -269,7 +270,20 @@ class scrape_pol_class():
             print(f"||||| {url_left} URLS left to scrape |||||")
         print("REPLIES left:", reply_left)
 
-    def grab_info_from_threads(self, thread_list, return_dataframe = False):
+    def search_each_reply_for_key_words(threads,replies,keywords): # def search_each_reply_for_key_words(thread_replies_dictionary, keywords):
+        
+        keywords = ["bought","a","gun","manifesto","luck","kill","live","livestream","shooting","time","suicide","race","war"]
+        
+        for thread in threads:
+        
+            for r in replies:
+                r = r.lower()
+                for k in keywords:
+                    # fuzzy wuzzy function to search for like words, etc.
+                    if k in r:
+                        pass
+
+    def grab_info_from_threads(self, thread_list, return_dataframe = False,sleep_len=SLEEP_LEN):
         
         """
         grabs replies, number of images, number of posters, and any identifiable posters (and all posters in general), 
@@ -287,9 +301,10 @@ class scrape_pol_class():
         for url in thread_list:
             thread_dict = {}
             url_ct += 1
-            driver = get_selenium_driver()
+            main = MainScrapeFunc()
+            driver = main.get_selenium_driver()
             driver.get(url)
-            driver.implicitly_wait(3) # wait a few seconds for driver to catch up to the request
+            time.sleep(sleep_len)# wait a few seconds for driver to catch up to the request
             
             pattern = r"\b\d{9}\b"
             match = re.search(pattern, url)
@@ -321,54 +336,65 @@ class scrape_pol_class():
             thread_dict = merge_dicts(thread_dict_list)
         return [thread_dict, shortend_threads]
 
-    def grab_all_replies(self, thread_dict, shortend_threads):
-        
+    def grab_all_replies(self,thread_dict,sleep_len=SLEEP_LEN):
         thread_reply_dict_list = []
-
         thread_nums = thread_dict['thread_number']
         num_replies = thread_dict['num_replies']
-        pairs = zip(thread_nums, num_replies)
-        url_ct = 0
-        for thread_number, num_reply in pairs:
-            URL_ = f"https://boards.4chan.org/pol/thread/{thread_number}"
-            reply_ct = 0
-            thread_reply_dict = {
-                "thread":thread_number,
-            }
-            REPLY_CT = num_reply
-            replies_list = []
-            if REPLY_CT > 0: # break death loop on threads with no replies
-                url_ct += 1
+        num_posters = thread_dict['num_posters']
+        ct = 0
+        main = MainScrapeFunc()
+        driver = main.get_selenium_driver()
+        repeat_ = 0
+        for i in range(len(thread_nums)):
+            # if repeat_ == 0:
+                thread_number = thread_nums[i]
+                replies_list = []
+                URL_ = f"https://boards.4chan.org/pol/thread/{thread_number}"
+                driver.get(URL_)
+                time.sleep(sleep_len)
+                thread_number = thread_nums[i]
+                reply_ct = num_replies[i]
+                post_ct = num_posters[i]
                 try:
-                    while reply_ct <= REPLY_CT:
-                        reply_ct += 1
-                        scrape = scrape_pol_class()
-                        scrape.give_number_left(num_urls=len(thread_nums),num_replies=REPLY_CT,url_ct=url_ct,reply_ct=reply_ct)
-                        driver = get_selenium_driver()
-                        driver.get(URL_)
-                        # driver.implicitly_wait() # wait a few seconds for driver to catch up to the request
-                        try:
-                            elem = driver.find_elements(By.XPATH, f"/html/body/form[2]/div[1]/div[1]/div[{reply_ct}]/div[2]/blockquote") # grab thread reply count by xpath # right-click the element in the browser and copy the xpath
-                            for el in elem:
-                                # print("el.text::",el.text)
-                                print("reply_ct:",reply_ct)
-                                replies_list.append(el.text) 
-                        except Exception as error:
-                            print('error:', Exception)
-                            replies_list.append(f"ERROR: {Exception}") 
-                    thread_reply_dict['post_replies'] = replies_list
-                    thread_reply_dict_list.append(thread_reply_dict)
+                    subject_title = driver.find_element(By.XPATH,"/html/body/form[2]/div[1]/div[1]/div[1]/div/div[3]/span[1]")
+                    reply_dict = {
+                            "thread":thread_number,
+                            "thread_info":{
+                                "title_of_thread" : "",
+                                "reply_count":reply_ct,
+                                # "number_images":0,
+                                "number_of_unq_posters":post_ct
+                            },
+                            "replies":[]
+                        }
+                    subject_title = subject_title.text
+                    thread_title = "{subject_title}"
+                    reply_dict['thread_info']['title_of_thread'] = thread_title.format(subject_title=subject_title)
+                    time.sleep(sleep_len)
+                    elem = driver.find_elements(By.CLASS_NAME, "postMessage") 
+                    for el in elem:
+                        ct += 1
+                        replies_list.append(el.text)
+                    reply_dict['replies'] = replies_list
+                    thread_reply_dict_list.append(reply_dict)
+                    # print(reply_dict)
                 except:
-                    replies_list.append("")
-                    thread_reply_dict['post_replies'] = replies_list
-                    thread_reply_dict_list.append(thread_reply_dict)
-            if REPLY_CT == 0:
-                url_ct += 1
-            
-        write_json(dictionary_list = thread_reply_dict_list,file_name="test")
-        return thread_reply_dict_list
+                    print("failed on thread:", thread_number)
+                    # repeat_ = 1
+                # if repeat_ == 0:
 
-    def grab_thread_urls_from_catalog(self,self_list = False):
+            # if repeat_ == 1:
+                # repeat_ = 0
+        print(len(thread_reply_dict_list))
+        threads_replies_dictionary = merge_nested_dicts(thread_reply_dict_list)
+    
+        with open("thread_replies_dict_test.json", "w") as json_file:
+            json.dump(threads_replies_dictionary, json_file, indent=4) 
+
+        return threads_replies_dictionary
+                
+
+    def grab_thread_urls_from_catalog(self,self_list = False,sleep_len=SLEEP_LEN):
         """
         grabs thread URLs from catalog page of 4chan /pol/
         
@@ -376,9 +402,11 @@ class scrape_pol_class():
         """
         pol_cat_url = "https://boards.4chan.org/pol/catalog"
         
-        driver = get_selenium_driver()
+        main = MainScrapeFunc()
+        driver = main.get_selenium_driver()
         driver.get(pol_cat_url)
-        time.sleep(5)
+        time.sleep(sleep_len)
+        
         
         html_content = driver.page_source
 
@@ -401,11 +429,15 @@ def write_json(dictionary={},file_name = "oops_nofilename", dictionary_list = []
     if dictionary_list != []:
         dictionary = merge_dicts(dictionary_list)
         formatted_date = give_date_and_time(hours=True)
+        # my_match_date_handler = GoshDarnMatchDate()
+        # my_match_date_handler.set_latest_match_date(formatted_date)
         path = f"replies_dictionary/{file_name}_{formatted_date}.json"
         with open(path, "w") as json_file:
             json.dump(dictionary, json_file, indent=4) 
     if dictionary_list == []:
         formatted_date = give_date_and_time(hours=True)
+        # my_match_date_handler = GoshDarnMatchDate()
+        # my_match_date_handler.set_latest_match_date(formatted_date)
         path = f"replies_dictionary/{file_name}_{formatted_date}.json"
         with open(path, "w") as json_file:
             json.dump(dictionary, json_file, indent=4) 
@@ -508,68 +540,90 @@ def split_into_sentences(content_list):
             all_sentences.append(sentence)
     return all_sentences
 
-def count_analyze_words(content_list):
-    
-    """
-    get a count of each unique string and write it to a json file
-    
-    also writes down each and every div to a txt file. each div should, in theory,
-    be a unique post by a given user. so if there are 5000+ divs in the final list, then
-    there are 5000 unique posts, in theory. It's highly likely there are mistakes getting through
-    but this is the closest I can get, for now
-    
-    the portion about catching mass shooting key phrases is a work in progress    
-    
-    until mysql is set up, complete post content will be saved to a txt file and 
-    word counts will be saved to a json file
-    
-    """
-    
-    formatted_date = give_date_and_time(hours=True)
-    
-    from collections import defaultdict
-    word_counts = defaultdict(int)
-    
-    # search for words that indicate violent intentions
-    # "race war" is a prime example, though on its own it is meaningless
-    # but "race war" in a mass shooter manifesto is not unheard of
-    # other possible searches could be along the lines of:
-    # "streaming live on facebook"
-    # "wish me luck and follow in my footsteps"
-    # "I am following in the footsteps of those before me"
-    # "I'm going to go for a high score" ("Gamifying" mass shootings by seeing 
-    #  ## # # how many kills they can get before they die by suicide or cop)
-    # and other phrases like those that indicate someone is 
-    # about to commit a mass shooting or mass violence in general
-    
-    race_war_ct = 0
-    for content in content_list:
-        if "race war" in content:
-            race_war_ct += 1
-        words = content.split()
-        for word in words:
-            word_counts[word]+=1
-    file_name = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_{formatted_date}.json"
-    file_name_forscript = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{formatted_date}.json"
-    gosh_darn = gosh_darn_match_date()
-    gosh_darn.latest_scrape_specific_match_date = formatted_date
-    sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
+class CountAnalyzeWords:
 
-    # upload word counts and post content to Mysql database
-    # upload_data_mySQL(sorted_dict,content_list) 
-    
-    with open(file_name, "w") as json_file:
-        json.dump(sorted_dict, json_file,indent=4) 
+    # def __init__(self):
+    #     self.latest_scrape_specific_match_date = ""
 
-    with open(file_name_forscript, "w") as json_file:
-        json.dump(sorted_dict, json_file,indent=4) 
-    
-    with open(f'{CONTENT_LIST_TXT_FILES_PATH}content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
-        for line in content_list:
-            f.write(line)
-            f.write('\n')
-    f.close()
-    print("content list created")
+    def count_analyze_words(self, content_list):
+        
+        """
+        get a count of each unique string and write it to a json file
+        
+        also writes down each and every div to a txt file. each div should, in theory,
+        be a unique post by a given user. so if there are 5000+ divs in the final list, then
+        there are 5000 unique posts, in theory. It's highly likely there are mistakes getting through
+        but this is the closest I can get, for now
+        
+        the portion about catching mass shooting key phrases is a work in progress    
+        
+        until mysql is set up, complete post content will be saved to a txt file and 
+        word counts will be saved to a json file
+        
+        """
+        
+        formatted_date = give_date_and_time(hours=True)
+        # my_match_date_handler = CountAnalyzeWords()
+        # my_match_date_handler.latest_scrape_specific_match_date = formatted_date
+        
+        from collections import defaultdict
+        word_counts = defaultdict(int)
+        
+        # search for words that indicate violent intentions
+        # "race war" is a prime example, though on its own it is meaningless
+        # but "race war" in a mass shooter manifesto is not unheard of
+        # other possible searches could be along the lines of:
+        # "streaming live on facebook"
+        # "wish me luck and follow in my footsteps"
+        # "I am following in the footsteps of those before me"
+        # "I'm going to go for a high score" ("Gamifying" mass shootings by seeing 
+        #  ## # # how many kills they can get before they die by suicide or cop)
+        # and other phrases like those that indicate someone is 
+        # about to commit a mass shooting or mass violence in general
+        
+        race_war_ct = 0
+        for content in content_list:
+            if "race war" in content:
+                race_war_ct += 1
+            words = content.split()
+            for word in words:
+                word_counts[word]+=1
+        file_name = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_{formatted_date}.json"
+        file_name_forscript = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{formatted_date}.json"
+        sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
+
+        # upload word counts and post content to Mysql database
+        # upload_data_mySQL(sorted_dict,content_list) 
+        
+        with open(file_name, "w") as json_file:
+            json.dump(sorted_dict, json_file,indent=4) 
+
+        with open(file_name_forscript, "w") as json_file:
+            json.dump(sorted_dict, json_file,indent=4) 
+        
+        with open(f'{CONTENT_LIST_TXT_FILES_PATH}content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
+            for line in content_list:
+                f.write(line)
+                f.write('\n')
+        f.close()
+        print("content list created")
+        return formatted_date
+
+    def grab_latest_json(self,match_date):
+        """
+        grab latest json file to build dictionary for matching function
+        """
+        # my_match_date_handler = CountAnalyzeWords()
+        # match_date = my_match_date_handler.latest_scrape_specific_match_date
+        print("ONE",WORD_COUNT_JSON_CURRENTS_PATH)
+        print("TWO",match_date)
+        directory = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{match_date}.json"
+        print("THREE",directory)
+        f = open(directory)
+        data = json.load(f)
+        f.close()
+        return data
+
 
 def more_non_letters_than_letters(input_string):
     
@@ -635,7 +689,7 @@ def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
         "genocide":"genocide",
         "kill":"kill",
         "goy":"goy",
-        "globohomo":"globohomo", # aka, colonial imperialism as it defined by russian-style fascists; or perhaps some NWO-style plan by the globalists (jews) as defined by conservatives
+        "globohomo":"globohomo", # aka, colonial imperialism as it defined by russian-style fascists; or perhaps some NWO-style plan by the globalists (jews) as defined by some far right/MAGA conservatives
         "globalist":"globalist",
         "fren":"fren",
         "comfy":"comfy",
@@ -645,9 +699,13 @@ def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
         "kosher":"kosher",
         "blood":"blood",
         "vermin":"vermin",
-        "shitskin":"shitskin"
+        "shitskin":"shitskin",
+        "pajeet":"pajeet",
+        "military":"military"
     }
     formatted_date = give_date_and_time(hours=True)
+    # my_match_date_handler = GoshDarnMatchDate()
+    # my_match_date_handler.set_latest_match_date("2023-01-01")
     # readable_formatted_date = now.strftime("%m_%d_%Y") 
     
     simple_count_dict = {filename:count}
@@ -734,16 +792,71 @@ def search_content(search_word, search_date="",query_dict={}):
             file.write('\n')
     
     
-def grab_latest_json():
-    """
-    grab latest json file to build dictionary for matching function
-    """
-    gosh_darn = gosh_darn_match_date()
-    directory = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{gosh_darn.latest_scrape_specific_match_date}.json"
-    f = open(directory)
-    data = json.load(f)
-    f.close()
-    return data
-
-
+class MainScrapeFunc():
+    
+    def __init__(self):
+        self.hide = False
+        self.minimize = True
+    def minimize_or_hide(self,hide=False,minimize=True):
+        self.hide = hide
+        self.minimize = minimize
+    def get_selenium_driver(self):
+        """
+        returns webdriver so selenium can be implemented more easily
+        """
+        webdriver_path = WEBDRIVER_PATH
+        service = Service(executable_path=webdriver_path)
+        options = webdriver.ChromeOptions()
+        check_conditions = MainScrapeFunc()
+        hide_window = check_conditions.hide
+        minimize = check_conditions.minimize
+        
+        if hide_window == True:
+            minimize = False
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')  # Last I checked this was necessary.
+        driver = webdriver.Chrome(service=service, options=options)    
+        if minimize == True:
+            driver.minimize_window()
+        return driver
+    def main_function(self,word_query_list,complete_run=False,sql_insert=False,save_thread_list=False,choose_thread="",random_grab=0):
+        formatted_date = give_date_and_time(hours=True)
+        if complete_run == True:
+            run_vpn_and_chromedriver()
+            scrape = scrape_pol_class()
+            if True:
+                if type(choose_thread) == str:
+                    if len(choose_thread) == 9:
+                        choose_thread = f"https://boards.4chan.org/pol/thread/{choose_thread}"
+                        thread_list = [choose_thread]
+                    else:
+                        thread_list = [choose_thread]
+                if type(choose_thread) == list:
+                    thread_list = choose_thread
+            if choose_thread == "":
+                thread_list = scrape.grab_thread_urls_from_catalog()
+                if random_grab > 0:
+                    thread_list = random.sample(thread_list,k=random_grab) 
+                if random_grab < 0:
+                    count = abs(random_grab)
+                    thread_list = thread_list[:count]
+            if save_thread_list == True:
+                write_line_by_line_txt(thread_list,filename="temp_thread_list")
+            thread_dict, shortened_threads = scrape.grab_info_from_threads(thread_list)
+            write_json(thread_dict,file_name="thread_dict")
+            thread_reply_list = scrape.grab_all_replies(thread_dict,)
+            print("Number of threads scraped:",len(thread_list))
+            # content_list = run_url_scrape(thread_list)
+            # all_sentences = split_into_sentences(content_list=content_list)
+            # write_line_by_line_txt(content_list=all_sentences,filename="test_all_sentences",html=True)
+            # COUNT = CountAnalyzeWords()
+            # match_date = COUNT.count_analyze_words(content_list)
+        # json_data = COUNT.grab_latest_json(match_date)
+        print(f"Word counts on 4chan/pol/ for threads existing on: {formatted_date}")
+        # query_list_match_dict = find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
+        # find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
+        if sql_insert == True:
+            print("test")
+            insert_into_table(sql_table="pol_word_counts")
+            # insert_into_table(sql_table="thread_stats_info",thread_list=thread_list)
             
