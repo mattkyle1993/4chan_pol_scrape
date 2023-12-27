@@ -27,6 +27,7 @@ import re
 import random
 import collections
 from mysql_database_functions import * 
+from word_queries_input import *
 
 SLEEP_LEN = 3
 
@@ -177,47 +178,6 @@ def run_vpn_and_chromedriver(chromedriver=False):
         else:
             print(f"...{program_name[ct]} running!")
 
-def beaut_soup_grab(url,find_all='div',div_class=""):
-    r = requests.get(url, headers={'accept': 'application/json'})
-    if r.status_code == 200:
-        # Process the response content here
-        print(f"Success for {url}")
-    else:
-        # Log an error for non-success status codes
-        print(f"Error: {url} returned status code {r.status_code}")
-    output = r.text
-    soup = BeautifulSoup(output, 'html.parser')
-    if div_class == "":
-        divs = soup.find_all(find_all) 
-    else:
-        divs = soup.find_all(find_all,class_=div_class) 
-    return divs
-
-def run_url_scrape(url_list):
-    now = datetime.now()
-    search_date = now.strftime("%m/%d/%y")
-
-    content_list = []
-    for url in url_list:
-        try:
-            divs = beaut_soup_grab(url)
-            # rid the list of divs without user postings by filtering for div's with anonymous 2 or more times
-            for div in divs:
-                content = div.text
-                if content.count("Anonymous") >= 2:
-                    if search_date in content:
-                        if content in content_list:
-                            pass
-                        else:
-                            content_list.append(content)
-        except requests.exceptions.RequestException as e:
-            # Handle exceptions raised by requests, e.g., connection error, timeout, etc.
-            print(f"Request Exception for {url}: {e}")
-        except Exception as e:
-            # Handle other unexpected exceptions
-            print(f"An unexpected error occurred for {url}: {e}")
-            
-    return content_list
 
 def parse_html(html_content,filename,thread_search=True): 
     """
@@ -385,10 +345,10 @@ class scrape_pol_class():
 
             # if repeat_ == 1:
                 # repeat_ = 0
-        print(len(thread_reply_dict_list))
+        # print(len(thread_reply_dict_list))
         threads_replies_dictionary = merge_nested_dicts(thread_reply_dict_list)
-    
-        with open("thread_replies_dict_test.json", "w") as json_file:
+        formatted_date = give_date_and_time(hours=True)
+        with open(f"thread_replies_dict_test_{formatted_date}.json", "w") as json_file:
             json.dump(threads_replies_dictionary, json_file, indent=4) 
 
         return threads_replies_dictionary
@@ -406,8 +366,6 @@ class scrape_pol_class():
         driver = main.get_selenium_driver()
         driver.get(pol_cat_url)
         time.sleep(sleep_len)
-        
-        
         html_content = driver.page_source
 
         the_list = parse_html(html_content=html_content,filename="4chan_catalog_pol")
@@ -482,8 +440,10 @@ def write_line_by_line_txt(content_list,filename,direct_address="", directory_na
             
     print("Txt file written. Number of lines:",len(content_list))
 
-def split_into_sentences(content_list):
+
+def merge_dicts(dicts_list):
     """
+<<<<<<< Updated upstream
     
     GRABBED THIS FUNCTION FROM HERE: https://stackoverflow.com/questions/4576077/how-can-i-split-a-text-into-sentences
     I MODIFIED IT SOMEWHAT.
@@ -499,93 +459,58 @@ def split_into_sentences(content_list):
 
     :return: list of sentences
     :rtype: list[str]
+=======
+    merge together dictionaries
+>>>>>>> Stashed changes
     """
-    all_sentences = []
-    # -*- coding: utf-8 -*-
-    alphabets= "([A-Za-z])"
-    prefixes = "(Mr|St|Mrs|Ms|Dr)[.]"
-    suffixes = "(Inc|Ltd|Jr|Sr|Co)"
-    starters = "(Mr|Mrs|Ms|Dr|Prof|Capt|Cpt|Lt|He\s|She\s|It\s|They\s|Their\s|Our\s|We\s|But\s|However\s|That\s|This\s|Wherever)"
-    acronyms = "([A-Z][.][A-Z][.](?:[A-Z][.])?)"
-    websites = "[.](com|net|org|io|gov|edu|me)"
-    digits = "([0-9])"
-    multiple_dots = r'\.{2,}'
-    
-    for text in content_list:
-        text = " " + text + "  "
-        text = text.replace("\n"," ")
-        text = re.sub(prefixes,"\\1<prd>",text)
-        text = re.sub(websites,"<prd>\\1",text)
-        text = re.sub(digits + "[.]" + digits,"\\1<prd>\\2",text)
-        text = re.sub(multiple_dots, lambda match: "<prd>" * len(match.group(0)) + "<stop>", text)
-        if "Ph.D" in text: text = text.replace("Ph.D.","Ph<prd>D<prd>")
-        text = re.sub("\s" + alphabets + "[.] "," \\1<prd> ",text)
-        text = re.sub(acronyms+" "+starters,"\\1<stop> \\2",text)
-        text = re.sub(alphabets + "[.]" + alphabets + "[.]" + alphabets + "[.]","\\1<prd>\\2<prd>\\3<prd>",text)
-        text = re.sub(alphabets + "[.]" + alphabets + "[.]","\\1<prd>\\2<prd>",text)
-        text = re.sub(" "+suffixes+"[.] "+starters," \\1<stop> \\2",text)
-        text = re.sub(" "+suffixes+"[.]"," \\1<prd>",text)
-        text = re.sub(" " + alphabets + "[.]"," \\1<prd>",text)
-        if "”" in text: text = text.replace(".”","”.")
-        if "\"" in text: text = text.replace(".\"","\".")
-        if "!" in text: text = text.replace("!\"","\"!")
-        if "?" in text: text = text.replace("?\"","\"?")
-        text = text.replace(".",".<stop>")
-        text = text.replace("?","?<stop>")
-        text = text.replace("!","!<stop>")
-        text = text.replace("<prd>",".")
-        sentences = text.split("<stop>")
-        sentences = [s.strip() for s in sentences]
-        if sentences and not sentences[-1]: sentences = sentences[:-1]
-        for sentence in sentences:
-            all_sentences.append(sentence)
-    return all_sentences
+    merge_dict = {}
+    for d in dicts_list:
+        for key, value in d.items():
+            # Create an entry in the merged dictionary for each key
+            if key not in merge_dict:
+                merge_dict[key] = []
+            merge_dict[key].append(value)
+    return merge_dict
 
-class CountAnalyzeWords:
+class CountAnalyzeWords():
+
+    """
+    blur_words = dictionary of words and their "blurred" output for content-blurring
+    word_query_list = words to search threads for and get their counts
+    """
 
     # def __init__(self):
     #     self.latest_scrape_specific_match_date = ""
 
-    def count_analyze_words(self, content_list):
+    def __init__(self):
+        self.blur_words = BLUR_WORDS
+        self.word_query_list = WORD_QUERY_LIST
+
+    def count_analyze_words(self,thread_reply_list):
         
         """
         get a count of each unique string and write it to a json file
-        
-        also writes down each and every div to a txt file. each div should, in theory,
-        be a unique post by a given user. so if there are 5000+ divs in the final list, then
-        there are 5000 unique posts, in theory. It's highly likely there are mistakes getting through
-        but this is the closest I can get, for now
-        
-        the portion about catching mass shooting key phrases is a work in progress    
-        
-        until mysql is set up, complete post content will be saved to a txt file and 
-        word counts will be saved to a json file
-        
         """
         
         formatted_date = give_date_and_time(hours=True)
-        # my_match_date_handler = CountAnalyzeWords()
-        # my_match_date_handler.latest_scrape_specific_match_date = formatted_date
-        
+
         from collections import defaultdict
         word_counts = defaultdict(int)
         
-        # search for words that indicate violent intentions
-        # "race war" is a prime example, though on its own it is meaningless
-        # but "race war" in a mass shooter manifesto is not unheard of
-        # other possible searches could be along the lines of:
-        # "streaming live on facebook"
-        # "wish me luck and follow in my footsteps"
-        # "I am following in the footsteps of those before me"
-        # "I'm going to go for a high score" ("Gamifying" mass shootings by seeing 
-        #  ## # # how many kills they can get before they die by suicide or cop)
-        # and other phrases like those that indicate someone is 
-        # about to commit a mass shooting or mass violence in general
+        nested_content_list = thread_reply_list['replies']
         
-        race_war_ct = 0
-        for content in content_list:
-            if "race war" in content:
-                race_war_ct += 1
+        flat_list = []
+        for nest in nested_content_list:
+            if type(nest) == str:
+                nest = nest.split()
+                for nestt in nest:
+                    flat_list.append(nestt)
+            if type(nest) == list:
+                for n in nest:
+                    nn = n.split()
+                    for nnn in nn:
+                        flat_list.append(nnn)
+        for content in flat_list:
             words = content.split()
             for word in words:
                 word_counts[word]+=1
@@ -593,8 +518,6 @@ class CountAnalyzeWords:
         file_name_forscript = f"{WORD_COUNT_JSON_CURRENTS_PATH}word_counts_current_{formatted_date}.json"
         sorted_dict = dict(sorted(word_counts.items(), key=lambda item: item[1], reverse=True))
 
-        # upload word counts and post content to Mysql database
-        # upload_data_mySQL(sorted_dict,content_list) 
         
         with open(file_name, "w") as json_file:
             json.dump(sorted_dict, json_file,indent=4) 
@@ -603,7 +526,7 @@ class CountAnalyzeWords:
             json.dump(sorted_dict, json_file,indent=4) 
         
         with open(f'{CONTENT_LIST_TXT_FILES_PATH}content_list_{formatted_date}.txt', 'w',encoding='utf-8') as f:
-            for line in content_list:
+            for line in flat_list:
                 f.write(line)
                 f.write('\n')
         f.close()
@@ -625,174 +548,128 @@ class CountAnalyzeWords:
         f.close()
         return data
 
-
-def more_non_letters_than_letters(input_string):
-    
-    """
-    takes a given string and counts letters and non-letters and
-    determines whether or not the string is more likely a word 
-    or more likely a series of random characters
-    """
-    
-    non_letter_count = 0
-    letter_count = 0
-    for char in input_string:
-        if char.isalpha():
-            letter_count += 1
-        else:
-            non_letter_count += 1
-    return non_letter_count > letter_count
-
-def merge_dicts(dicts_list):
-    """
-    merge together dictionaries
-    """
-    merge_dict = {}
-    for d in dicts_list:
-        for key, value in d.items():
-            # Create an entry in the merged dictionary for each key
-            if key not in merge_dict:
-                merge_dict[key] = []
-            merge_dict[key].append(value)
-    return merge_dict
-
-def get_counts_for_queries(query_tuple_list,word_counts_dict,filename):
-
-    query_words = {}
-    for q in query_tuple_list:
-        word = q[0]
-        score = q[1]
-        if score >= 80:
-            query_words[word] = score
-    
-    new_count_dict = {}
-    for q_word in query_words:
-        for wordd, count in word_counts_dict.items():
-            if wordd == q_word:
-                new_count_dict[wordd] = count
-    
-    count = 0
-    for word, ct in new_count_dict.items():
-        count += ct
-
-    blur_words = {
-        "nigger":"n-word",
-        "jew":"jew",
-        "hitler":"hitler",
-        "kike":"k-word",
-        "poo":"poo (anti-Indian slur)",
-        "white":"white",
-        "jesus":"jesus",
-        "christian":"christian",
-        "muslim":"muslim",
-        "troon":"troon",
-        "tranny":"tranny",
-        "genocide":"genocide",
-        "kill":"kill",
-        "goy":"goy",
-        "globohomo":"globohomo", # aka, colonial imperialism as it defined by russian-style fascists; or perhaps some NWO-style plan by the globalists (jews) as defined by some far right/MAGA conservatives
-        "globalist":"globalist",
-        "fren":"fren",
-        "comfy":"comfy",
-        "pogrom":"pogrom",
-        "society":"society",
-        "collapse":"collapse",
-        "kosher":"kosher",
-        "blood":"blood",
-        "vermin":"vermin",
-        "shitskin":"shitskin",
-        "pajeet":"pajeet",
-        "military":"military"
-    }
-    formatted_date = give_date_and_time(hours=True)
-    # my_match_date_handler = GoshDarnMatchDate()
-    # my_match_date_handler.set_latest_match_date("2023-01-01")
-    # readable_formatted_date = now.strftime("%m_%d_%Y") 
-    
-    simple_count_dict = {filename:count}
-    
-    print(f"Query:{blur_words[filename]}. Number of occurances: {count}.")
-    query_file_name = f"{QUERY_WORD_COUNTS_PATH}query_word_count_query_{filename}_{formatted_date}.json"
-    with open(query_file_name, "w") as json_file:
-        json.dump(simple_count_dict, json_file, indent=4) 
-
-def find_similar_matches(query_list, words_dictionary, threshold=80):
-
-    """
-    find matches for the queryied words (i.e., slurs) and 
-    remove and 'fluff' and mismatches
-    """
-
-    match_dict_list = []
-    for query in query_list:
-        # get upper bound number to add to query string size for getting matches
-        querylen_step_1 = len(query) * .33
-        querylen_step_2 = querylen_step_1 * 100
-        querylen_step_3 = int(querylen_step_2)
-        querylen_step_4 = querylen_step_3 % 100
+    def more_non_letters_than_letters(self,*word):
         
-        new_dict = {}
-        for word, score in words_dictionary.items():
-            match_string = word[0]
-            match_string_first_letter = match_string[0].lower()
-            query_string_first_letter = query[0].lower()
-            if query_string_first_letter == match_string_first_letter:
-                if querylen_step_4 >= 50:
-                    uper_bnd = math.ceil(querylen_step_1)
-                else:
-                    uper_bnd = math.floor(querylen_step_1)
-                uper_bnd = len(query) + uper_bnd
-                if len(query) <= len(word):
-                    if len(word) <= uper_bnd:
-                        if more_non_letters_than_letters(word) == False:
-                            new_dict[word] = score
-        matches = process.extract(query, new_dict.keys(), limit=None)
-        matches = [(word, score) for word, score in matches if score >= threshold]
-        if matches:
-            # for word, similarity_score in matches:
-            #     # print(f"QUERY:{query}. {word}: {similarity_score}")
-            #     pass
-            match_dict_list.append(matches)
-        else:
-            print("no matches for query:",query)
+        """
+        takes a given string and counts letters and non-letters and 
+        determines whether or not the string is more likely a word 
+        or more likely a series of random characters
+        """
         
-        get_counts_for_queries(matches,words_dictionary,filename=query)
-    # return merge_dicts(match_dict_list)
-     
-def search_content(search_word, search_date="",query_dict={}):   
-    """
-    takes an optional search date in the format: 01-01-1999
-    """
-    now = datetime.now()
-    if search_date != "":
-        search_date = search_date
-    else:
-        search_date = now.strftime("%m_%d_%Y")
-    folder_path = CONTENT_LIST_TXT_FILES_PATH
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            if f"{search_date}" in file:
-                this_one = file
-                print(file)
-                break
-    this_one = folder_path + "/" + this_one
-    
-    searched_content = []
-    with open(this_one,"r",encoding="utf-8") as file:
-        for f in file:
-            if search_word in f:
-                if f not in searched_content:
-                    searched_content.append(f)
-    
-    print(len(searched_content))
-    search_date = now.strftime("%m_%d_%Y_%H_%M")
-    file_path = f"{CONTENT_LIST_TXT_FILES_PATH}searched_{search_word}_{search_date}.txt"
-    with open(file_path,"w",encoding="utf-8") as file:
-        for s in searched_content:
-            file.write(s)
-            file.write('\n')
-    
-    
+        non_letter_count = 0
+        letter_count = 0
+        for char in word:
+            if char.isalpha():
+                letter_count += 1
+            else:
+                non_letter_count += 1
+        return non_letter_count > letter_count
+
+    def get_counts_for_queries(self,query_tuple_list,word_counts_dict,filename,blur_words):
+
+        query_words = {}
+        for q in query_tuple_list:
+            word = q[0]
+            score = q[1]
+            if score >= 80:
+                query_words[word] = score
+        
+        new_count_dict = {}
+        for q_word in query_words:
+            for wordd, count in word_counts_dict.items():
+                if wordd == q_word:
+                    new_count_dict[wordd] = count
+        
+        count = 0
+        for word, ct in new_count_dict.items():
+            count += ct
+
+        formatted_date = give_date_and_time(hours=True)
+        simple_count_dict = {filename:count}
+        
+        print(f"Query:{blur_words[filename]}. Number of occurances: {count}.")
+        query_file_name = f"{QUERY_WORD_COUNTS_PATH}query_word_count_query_{filename}_{formatted_date}.json"
+        with open(query_file_name, "w") as json_file:
+            json.dump(simple_count_dict, json_file, indent=4) 
+
+    def find_similar_matches(self,query_list, words_dictionary, threshold=80):
+
+        """
+        find matches for the queryied words (i.e., slurs) and 
+        remove and 'fluff' and mismatches
+        """
+        count_non = CountAnalyzeWords.more_non_letters_than_letters
+        # count_query = CountAnalyzeWords.get_counts_for_queries
+        match_dict_list = []
+        for query in query_list:
+            # get upper bound number to add to query string size for getting matches
+            querylen_step_1 = len(query) * .33
+            querylen_step_2 = querylen_step_1 * 100
+            querylen_step_3 = int(querylen_step_2)
+            querylen_step_4 = querylen_step_3 % 100
+            
+            new_dict = {}
+            for word, score in words_dictionary.items():
+                match_string = word[0]
+                match_string_first_letter = match_string[0].lower()
+                query_string_first_letter = query[0].lower()
+                if query_string_first_letter == match_string_first_letter:
+                    if querylen_step_4 >= 50:
+                        uper_bnd = math.ceil(querylen_step_1)
+                    else:
+                        uper_bnd = math.floor(querylen_step_1)
+                    uper_bnd = len(query) + uper_bnd
+                    if len(query) <= len(word):
+                        if len(word) <= uper_bnd:
+                            if count_non(word) == False:
+                                new_dict[word] = score
+            matches = process.extract(query, new_dict.keys(), limit=None)
+            matches = [(word, score) for word, score in matches if score >= threshold]
+            if matches:
+                for word, similarity_score in matches:
+                    print(f"QUERY:{query}. {word}: {similarity_score}")
+                    pass
+                match_dict_list.append(matches)
+            else:
+                print("no matches for query:",query)
+            
+            COUNT = CountAnalyzeWords()
+            COUNT.get_counts_for_queries(query_tuple_list=matches,word_counts_dict=words_dictionary,filename=query,blur_words=COUNT.blur_words)
+        # return merge_dicts(match_dict_list)
+        
+    # def search_content(self,search_word, search_date="",query_dict={}):   
+    #     """
+    #     takes an optional search date in the format: 01-01-1999
+    #     """
+    #     now = datetime.now()
+    #     if search_date != "":
+    #         search_date = search_date
+    #     else:
+    #         search_date = now.strftime("%m_%d_%Y")
+    #     folder_path = CONTENT_LIST_TXT_FILES_PATH
+    #     for root, dirs, files in os.walk(folder_path):
+    #         for file in files:
+    #             if f"{search_date}" in file:
+    #                 this_one = file
+    #                 print(file)
+    #                 break
+    #     this_one = folder_path + "/" + this_one
+        
+    #     searched_content = []
+    #     with open(this_one,"r",encoding="utf-8") as file:
+    #         for f in file:
+    #             if search_word in f:
+    #                 if f not in searched_content:
+    #                     searched_content.append(f)
+        
+    #     print(len(searched_content))
+    #     search_date = now.strftime("%m_%d_%Y_%H_%M")
+    #     file_path = f"{CONTENT_LIST_TXT_FILES_PATH}searched_{search_word}_{search_date}.txt"
+    #     with open(file_path,"w",encoding="utf-8") as file:
+    #         for s in searched_content:
+    #             file.write(s)
+    #             file.write('\n')
+        
 class MainScrapeFunc():
     
     def __init__(self):
@@ -820,11 +697,12 @@ class MainScrapeFunc():
         if minimize == True:
             driver.minimize_window()
         return driver
-    def main_function(self,word_query_list,complete_run=False,sql_insert=False,save_thread_list=False,choose_thread="",random_grab=0):
+    def main_function(self,word_query_list=[],complete_run=False,sql_insert=False,save_thread_list=False,choose_thread="",grab=0):
         formatted_date = give_date_and_time(hours=True)
+        COUNT = CountAnalyzeWords()
+        scrape = scrape_pol_class()
+        run_vpn_and_chromedriver()
         if complete_run == True:
-            run_vpn_and_chromedriver()
-            scrape = scrape_pol_class()
             if True:
                 if type(choose_thread) == str:
                     if len(choose_thread) == 9:
@@ -836,26 +714,25 @@ class MainScrapeFunc():
                     thread_list = choose_thread
             if choose_thread == "":
                 thread_list = scrape.grab_thread_urls_from_catalog()
-                if random_grab > 0:
-                    thread_list = random.sample(thread_list,k=random_grab) 
-                if random_grab < 0:
-                    count = abs(random_grab)
+                if grab > 0:
+                    print("grabbing {grab} random threads".format(grab=grab))
+                    thread_list = random.sample(thread_list,k=grab) 
+                if grab < 0:
+                    print("grabbing top {grab} threads".format(grab=grab))
+                    count = abs(grab)
                     thread_list = thread_list[:count]
             if save_thread_list == True:
                 write_line_by_line_txt(thread_list,filename="temp_thread_list")
             thread_dict, shortened_threads = scrape.grab_info_from_threads(thread_list)
             write_json(thread_dict,file_name="thread_dict")
-            thread_reply_list = scrape.grab_all_replies(thread_dict,)
+            thread_reply_list_dict = scrape.grab_all_replies(thread_dict,)
             print("Number of threads scraped:",len(thread_list))
-            # content_list = run_url_scrape(thread_list)
-            # all_sentences = split_into_sentences(content_list=content_list)
-            # write_line_by_line_txt(content_list=all_sentences,filename="test_all_sentences",html=True)
-            # COUNT = CountAnalyzeWords()
-            # match_date = COUNT.count_analyze_words(content_list)
-        # json_data = COUNT.grab_latest_json(match_date)
+            
+            match_date = COUNT.count_analyze_words(thread_reply_list_dict)
+        json_data = COUNT.grab_latest_json(match_date)
         print(f"Word counts on 4chan/pol/ for threads existing on: {formatted_date}")
-        # query_list_match_dict = find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
-        # find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
+        # query_list_match_dict = COUNT.find_similar_matches(query_list=word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
+        COUNT.find_similar_matches(query_list=COUNT.word_query_list,words_dictionary=json_data,threshold=80) # LIST OF SLURS TO QUERY
         if sql_insert == True:
             print("test")
             insert_into_table(sql_table="pol_word_counts")
