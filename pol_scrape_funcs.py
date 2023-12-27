@@ -443,25 +443,7 @@ def write_line_by_line_txt(content_list,filename,direct_address="", directory_na
 
 def merge_dicts(dicts_list):
     """
-<<<<<<< Updated upstream
-    
-    GRABBED THIS FUNCTION FROM HERE: https://stackoverflow.com/questions/4576077/how-can-i-split-a-text-into-sentences
-    I MODIFIED IT SOMEWHAT.
-    
-    
-    Split the text into sentences.
-
-    If the text contains substrings "<prd>" or "<stop>", they would lead 
-    to incorrect splitting because they are used as markers for splitting.
-
-    :param text: text to be split into sentences
-    :type text: str
-
-    :return: list of sentences
-    :rtype: list[str]
-=======
     merge together dictionaries
->>>>>>> Stashed changes
     """
     merge_dict = {}
     for d in dicts_list:

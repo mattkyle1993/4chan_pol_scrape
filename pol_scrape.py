@@ -16,22 +16,6 @@ from mysql_database_functions import *
 from word_queries_input import *
 import re
 
-<<<<<<< Updated upstream
-# list of specific words to search for and find matches using fuzzy wuzzy
-
-word_query_list = ["nigger","kike","jew","white","jesus",
-                   "hitler","christian","muslim","troon",
-                   "tranny","genocide","kill","goy",
-                   "globalist","fren","comfy","globohomo",
-                   "pogrom","society","collapse",
-                   "blood","kosher","vermin","military","pajeet",
-                   "shitskin"] # e.g., n-word, k-word, etc.
-
-        
-    
-        
-=======
->>>>>>> Stashed changes
 if __name__ == "__main__":
     main = MainScrapeFunc()
     main.minimize_or_hide(minimize=True)
